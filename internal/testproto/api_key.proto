@@ -1,0 +1,11 @@
+// Test definitions for the grpcmesh package. Regenerate with `just proto`.
+syntax = "proto3";
+
+package testproto;
+
+option go_package = "github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto";
+
+message ApiKey {
+  optional string first_name = 1;
+  optional string last_name = 2;
+}
