@@ -236,7 +236,14 @@ cannot be encoded.
 
 ## Generated code
 
-For each service, `grpc-service-mesh-gen` emits a targets value, an
+The generator is `grpc-service-mesh-gen` from the specification repository:
+
+```sh
+go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.1.0
+grpc-service-mesh-gen --definitions definitions --out lib --lang go,ruby
+```
+
+For each service it emits a targets value, an
 `RPCService` struct, and a client. This is the reference output for the
 `ApiKeyService` in `internal/testproto`, which the tests use in place of a
 generated package. A real directory substitutes its own package name,
