@@ -50,7 +50,7 @@ import (
     "example.com/definitions/lib/go/servicemaps"
 )
 
-grpcmesh.AddTransport("nats", grpcmesh.Transport{
+err := grpcmesh.AddTransport("nats", grpcmesh.Transport{
     Config:     mesh.Config{nats.URLKey: os.Getenv("NATS_URL")},
     ServiceMap: servicemaps.Nats,
     NewRuntime: func(cfg mesh.Config, sm mesh.ServiceMap, e []mesh.Endpoint, s []mesh.Subscriber) (mesh.Runtime, error) {
@@ -69,10 +69,9 @@ built once from the entry's `NewClient` with the entry's `Config` and
 `ServiceMap`, and cached. A process that only calls never constructs an
 `RPCRuntime` and uses the standalone client throughout.
 
-Adding a name a second time replaces the entry and forgets the standalone
-client and the `RPCRuntime` the router knew for it. A client already handed
-out stays valid and is its holder's to close. A transport that was not added
-yields `ErrUnknownTransport`, wrapped with the name, from `Client`, `Get`,
+Adding a name a second time returns `ErrDuplicateTransport` wrapped with the
+name and keeps the first entry. A transport that was not added yields
+`ErrUnknownTransport`, wrapped with the name, from `Client`, `Get`,
 `NewRPCRuntime`, `Call`, and `Publish`.
 
 ### Registering a service
@@ -107,14 +106,17 @@ segments and kind are equal.
 Endpoints and Subscribers whose Targets carry `deploymentGroup`, takes the
 `Transport` entry from `DefaultTransportRouter`, and calls the entry's
 `NewRuntime` with the entry's `Config` plus `deployment_group` set to
-`deploymentGroup`, the entry's `ServiceMap`, and those bindings. The value
-passed to `NewRPCRuntime` is the deployment group, so a `deployment_group`
-key in the entry's `Config` is overwritten. Services registered after the
-constructor has run are not served.
+`deploymentGroup`, the entry's `ServiceMap`, and those bindings. The
+transport's runtime is built in the constructor, so `Underlying()` is set
+and the router hands out the runtime's `Client()` from that point, before
+`Start`. `Start`, `Stop`, and `Running` only delegate. The value passed to
+`NewRPCRuntime` is the deployment group, so a `deployment_group` key in the
+entry's `Config` is overwritten. Services registered after the constructor
+has run are not served.
 
 ```go
 rt, err := grpcmesh.NewRPCRuntime("nats", "pbx")
-if err != nil { /* ErrUnknownTransport, ErrRuntimeExists, or the transport constructor's error */ }
+if err != nil { /* ErrUnknownTransport, ErrDuplicateRuntime, or the transport constructor's error */ }
 if err := rt.Start(ctx); err != nil { /* the transport's error */ }
 
 stop := make(chan os.Signal, 1)
@@ -130,7 +132,7 @@ _ = rt.Stop(drain)
 `Client` go to the transport's runtime, which `Underlying()` returns.
 `Transport()` and `DeploymentGroup()` return what the runtime was built for.
 One `RPCRuntime` exists per transport on a router; a second construction for
-the same transport returns `ErrRuntimeExists` wrapped with the name.
+the same transport returns `ErrDuplicateRuntime` wrapped with the name.
 
 ### Handlers
 

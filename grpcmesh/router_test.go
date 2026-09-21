@@ -37,7 +37,9 @@ func TestRouterGetUnknownTransport(t *testing.T) {
 func TestRouterGetReturnsTheEntry(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	hub := memtransport.NewHub()
-	router.AddTransport("mem", memTransport(hub))
+	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 
 	entry, err := router.Get("mem")
 	if err != nil {
@@ -52,7 +54,9 @@ func TestRouterGetReturnsTheEntry(t *testing.T) {
 func TestRouterClientBuildsOneStandaloneClientFromTheEntry(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	hub := memtransport.NewHub()
-	router.AddTransport("mem", memTransport(hub))
+	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 
 	first, err := router.Client("mem")
 	if err != nil {
@@ -85,7 +89,9 @@ func TestRouterClientPropagatesNewClientError(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	hub := memtransport.NewHub()
 	hub.Fail = errors.New("connect refused")
-	router.AddTransport("mem", memTransport(hub))
+	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := router.Client("mem")
 
@@ -97,7 +103,9 @@ func TestRouterClientPropagatesNewClientError(t *testing.T) {
 func TestRouterClientSwitchesToTheRuntimeClientOnceAnRPCRuntimeExists(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 
 	standalone, err := grpcmesh.DefaultTransportRouter.Client("mem")
 	if err != nil {
@@ -120,29 +128,30 @@ func TestRouterClientSwitchesToTheRuntimeClientOnceAnRPCRuntimeExists(t *testing
 	}
 }
 
-func TestAddTransportAgainReplacesTheEntry(t *testing.T) {
+func TestAddTransportRejectsANameAlreadyAddedAndKeepsTheFirstEntry(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	first, second := memtransport.NewHub(), memtransport.NewHub()
-	router.AddTransport("mem", memTransport(first))
-	if _, err := router.Client("mem"); err != nil {
+	if err := router.AddTransport("mem", memTransport(first)); err != nil {
 		t.Fatal(err)
 	}
 
-	router.AddTransport("mem", grpcmesh.Transport{
+	err := router.AddTransport("mem", grpcmesh.Transport{
 		Config:     mesh.Config{"url": "mem://second"},
 		ServiceMap: mesh.ServiceMap{Targets: []mesh.Target{testproto.ApiKeyTargets.Search}},
 		NewRuntime: second.NewRuntime,
 		NewClient:  second.NewClient,
 	})
-	c, err := router.Client("mem")
-	if err != nil {
+
+	if !errors.Is(err, grpcmesh.ErrDuplicateTransport) {
+		t.Fatalf("err = %v, want ErrDuplicateTransport", err)
+	}
+	if !strings.Contains(err.Error(), "mem") {
+		t.Errorf("err = %q, want the transport name in it", err)
+	}
+	if _, err := router.Client("mem"); err != nil {
 		t.Fatal(err)
 	}
-
-	if len(second.Clients()) != 1 || c != second.Clients()[0] {
-		t.Error("client does not come from the replacement entry")
-	}
-	if len(first.Clients()) != 1 {
-		t.Errorf("first hub built %d clients, want the one from before the replacement", len(first.Clients()))
+	if len(first.Clients()) != 1 || len(second.Clients()) != 0 {
+		t.Errorf("first hub built %d clients and second %d, want the first entry kept", len(first.Clients()), len(second.Clients()))
 	}
 }

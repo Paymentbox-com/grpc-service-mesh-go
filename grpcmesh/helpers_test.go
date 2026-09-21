@@ -44,7 +44,9 @@ func serveMem(t *testing.T, svc grpcmesh.RPCService) *memtransport.Hub {
 	t.Helper()
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 	if err := grpcmesh.Register(svc); err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +67,9 @@ func serveRaw(t *testing.T, endpoints []mesh.Endpoint, subscribers []mesh.Subscr
 	t.Helper()
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 	cfg := mesh.Config{mesh.DeploymentGroupKey: "testproto"}
 	rt, err := hub.NewRuntime(cfg, memServiceMap, endpoints, subscribers)
 	if err != nil {

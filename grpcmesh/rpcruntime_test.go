@@ -14,7 +14,9 @@ import (
 func TestNewRPCRuntimeHandsTheTransportItsBindingsMapAndConfig(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 	if err := grpcmesh.Register(bindings{
 		endpoints:   []mesh.Endpoint{{Target: route("testproto", "testproto", "A", "Get")}, {Target: route("other", "other", "B", "Get")}},
 		subscribers: []mesh.Subscriber{{Target: topic("testproto", "testproto", "A", "Made")}, {Target: topic("other", "other", "B", "Made")}},
@@ -33,6 +35,9 @@ func TestNewRPCRuntimeHandsTheTransportItsBindingsMapAndConfig(t *testing.T) {
 	}
 	if rt.Underlying() != built[0] {
 		t.Error("Underlying() is not the runtime the transport built")
+	}
+	if c, err := grpcmesh.DefaultTransportRouter.Client("mem"); err != nil || c != built[0].Client() {
+		t.Errorf("router Client() before Start = %v, %v; want the runtime's client", c, err)
 	}
 	if built[0].Config[mesh.DeploymentGroupKey] != "testproto" || built[0].Config["url"] != memConfig["url"] {
 		t.Errorf("runtime config = %v, want the entry config plus deployment_group", built[0].Config)
@@ -56,7 +61,9 @@ func TestNewRPCRuntimeDeploymentGroupOverridesTheEntryConfig(t *testing.T) {
 	hub := memtransport.NewHub()
 	entry := memTransport(hub)
 	entry.Config = mesh.Config{mesh.DeploymentGroupKey: "configured"}
-	grpcmesh.AddTransport("mem", entry)
+	if err := grpcmesh.AddTransport("mem", entry); err != nil {
+		t.Fatal(err)
+	}
 
 	if _, err := grpcmesh.NewRPCRuntime("mem", "testproto"); err != nil {
 		t.Fatal(err)
@@ -83,15 +90,17 @@ func TestNewRPCRuntimeUnknownTransport(t *testing.T) {
 func TestNewRPCRuntimeRefusesASecondRuntimeForTheTransport(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := grpcmesh.NewRPCRuntime("mem", "testproto"); err != nil {
 		t.Fatal(err)
 	}
 
 	_, err := grpcmesh.NewRPCRuntime("mem", "other")
 
-	if !errors.Is(err, grpcmesh.ErrRuntimeExists) {
-		t.Errorf("err = %v, want ErrRuntimeExists", err)
+	if !errors.Is(err, grpcmesh.ErrDuplicateRuntime) {
+		t.Errorf("err = %v, want ErrDuplicateRuntime", err)
 	}
 	if len(hub.Runtimes()) != 1 {
 		t.Errorf("NewRuntime ran %d times, want 1", len(hub.Runtimes()))
@@ -102,7 +111,9 @@ func TestNewRPCRuntimePropagatesTheTransportConstructorError(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
 	hub.Fail = errors.New("bad url")
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := grpcmesh.NewRPCRuntime("mem", "testproto")
 
@@ -114,7 +125,9 @@ func TestNewRPCRuntimePropagatesTheTransportConstructorError(t *testing.T) {
 func TestRPCRuntimeDelegatesTheLifecycle(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
 	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
 	if err != nil {
 		t.Fatal(err)

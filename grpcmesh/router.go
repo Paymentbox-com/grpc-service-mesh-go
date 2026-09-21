@@ -12,9 +12,13 @@ import (
 // transport has not been added to the TransportRouter.
 var ErrUnknownTransport = errors.New("grpcmesh: unknown transport")
 
-// ErrRuntimeExists is returned, wrapped with the transport name, when a
+// ErrDuplicateTransport is returned, wrapped with the name, when a transport
+// name is added to a TransportRouter a second time.
+var ErrDuplicateTransport = errors.New("grpcmesh: transport already added")
+
+// ErrDuplicateRuntime is returned, wrapped with the transport name, when a
 // second RPCRuntime is constructed for a transport on the same router.
-var ErrRuntimeExists = errors.New("grpcmesh: an RPCRuntime already exists for this transport")
+var ErrDuplicateRuntime = errors.New("grpcmesh: an RPCRuntime already exists for this transport")
 
 // Transport is one entry of a TransportRouter: the configuration and the
 // ServiceMap of one transport together with the constructors of its Runtime
@@ -49,17 +53,20 @@ func NewTransportRouter() *TransportRouter {
 }
 
 // AddTransport adds t under name on DefaultTransportRouter.
-func AddTransport(name string, t Transport) {
-	DefaultTransportRouter.AddTransport(name, t)
+func AddTransport(name string, t Transport) error {
+	return DefaultTransportRouter.AddTransport(name, t)
 }
 
-// AddTransport adds t under name. Adding a name again replaces the entry and
-// forgets the standalone client and the RPCRuntime the router knew for it; a
-// client already handed out stays valid and is its holder's to close.
-func (r *TransportRouter) AddTransport(name string, t Transport) {
+// AddTransport adds t under name. A name already added returns
+// ErrDuplicateTransport and keeps the first entry.
+func (r *TransportRouter) AddTransport(name string, t Transport) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if _, ok := r.entries[name]; ok {
+		return fmt.Errorf("%w: %q", ErrDuplicateTransport, name)
+	}
 	r.entries[name] = &entry{transport: t}
+	return nil
 }
 
 // Get returns the entry added under name.
@@ -106,7 +113,7 @@ func (r *TransportRouter) bindRuntime(name string, rt mesh.Runtime) error {
 		return err
 	}
 	if e.runtime != nil {
-		return fmt.Errorf("%w: %s", ErrRuntimeExists, name)
+		return fmt.Errorf("%w: %s", ErrDuplicateRuntime, name)
 	}
 	e.runtime = rt
 	return nil
@@ -122,7 +129,7 @@ func (r *TransportRouter) reserveRuntime(name string) (Transport, error) {
 		return Transport{}, err
 	}
 	if e.runtime != nil {
-		return Transport{}, fmt.Errorf("%w: %s", ErrRuntimeExists, name)
+		return Transport{}, fmt.Errorf("%w: %s", ErrDuplicateRuntime, name)
 	}
 	return e.transport, nil
 }

@@ -22,8 +22,10 @@ var _ mesh.Runtime = (*RPCRuntime)(nil)
 // DefaultRegistry whose Targets carry deploymentGroup, takes the Transport
 // entry from DefaultTransportRouter, and calls the entry's NewRuntime with
 // the entry's Config plus deployment_group set to deploymentGroup, the
-// entry's ServiceMap, and those bindings. Services registered afterwards are
-// not served. Errors are ErrUnknownTransport, ErrRuntimeExists, or the
+// entry's ServiceMap, and those bindings. The runtime is built here, so
+// Underlying is set and the router hands out its Client from this point;
+// Start, Stop, and Running only delegate. Services registered afterwards are
+// not served. Errors are ErrUnknownTransport, ErrDuplicateRuntime, or the
 // transport constructor's own.
 func NewRPCRuntime(transport, deploymentGroup string) (*RPCRuntime, error) {
 	return newRPCRuntime(DefaultTransportRouter, DefaultRegistry, transport, deploymentGroup)
