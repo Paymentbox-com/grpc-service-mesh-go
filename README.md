@@ -85,7 +85,7 @@ err := grpcmesh.Register(pbx.ApiKeyService{
     Search: func(ctx context.Context, req *pbx.ApiKey) (*pbx.ApiKey, error) {
         key, ok := store.Find(req.GetFirstName())
         if !ok {
-            return nil, grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key")
+            return nil, grpcmesh.NewNotFoundError("no such key")
         }
         return key, nil
     },
@@ -144,7 +144,7 @@ message metadata is read from the context.
 Search: func(ctx context.Context, req *pbx.ApiKey) (*pbx.ApiKey, error) {
     md := grpcmesh.IncomingMetadata(ctx) // the message metadata, nil outside a handler
     if md["Tenant"] == "" {
-        return nil, grpcmesh.NewMeshError(code.Code_INVALID_ARGUMENT, "Tenant is required",
+        return nil, grpcmesh.NewInvalidArgumentError("Tenant is required",
             &errdetails.ErrorInfo{Reason: "MISSING_TENANT", Domain: "pbx"})
     }
     return store.Search(req)
@@ -215,8 +215,8 @@ Service Mesh API, and the transport are returned unchanged.
 `MeshError` wraps a `google.rpc.Status` and implements `error`.
 
 ```go
-me := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key", &errdetails.ErrorInfo{Reason: "GONE"})
-me.Code()    // code.Code_NOT_FOUND
+me := grpcmesh.NewNotFoundError("no such key", &errdetails.ErrorInfo{Reason: "GONE"})
+me.Code()    // grpcmesh.NotFound, which is code.Code_NOT_FOUND
 me.Message() // "no such key"
 me.Details() // []*anypb.Any
 me.Proto()   // the wrapped *status.Status
@@ -224,6 +224,14 @@ me.Error()   // "NOT_FOUND: no such key"
 
 back := grpcmesh.MeshErrorFromProto(st) // wraps st itself
 ```
+
+There is one constructor per `google.rpc.Code`, `NewNotFoundError`,
+`NewInvalidArgumentError`, `NewPermissionDeniedError`, and so on, each
+`NewMeshError` with its code fixed. The codes themselves are exported as
+constants of the `code.Code` type, `grpcmesh.OK`, `grpcmesh.NotFound`,
+`grpcmesh.Internal`, and the rest, so handler and caller code compares codes
+without importing the `code` package. `NewMeshError(c, msg, details...)` takes
+any code, including one with no constant.
 
 `NewMeshError` packs each detail message into `google.protobuf.Any`. A detail
 that cannot be packed, such as a message whose string field holds invalid
