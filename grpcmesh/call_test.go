@@ -79,11 +79,7 @@ func TestCallSendsOutgoingMetadataAndTransportOptions(t *testing.T) {
 func TestCallReturnsTheMeshErrorAReplyCarries(t *testing.T) {
 	serveMem(t, testproto.ApiKeyService{
 		Search: func(context.Context, *testproto.ApiKey) (*testproto.ApiKey, error) {
-			me, err := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key").WithDetails(&errdetails.ErrorInfo{Reason: "GONE"})
-			if err != nil {
-				return nil, err
-			}
-			return nil, me
+			return nil, grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key", &errdetails.ErrorInfo{Reason: "GONE"})
 		},
 	})
 

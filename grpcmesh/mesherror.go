@@ -16,29 +16,29 @@ type MeshError struct {
 	st *status.Status
 }
 
-// NewMeshError returns a MeshError with code c and message msg and no details.
-func NewMeshError(c code.Code, msg string) *MeshError {
-	return &MeshError{st: &status.Status{Code: int32(c), Message: msg}}
+// NewMeshError builds a MeshError from a code, a message, and any number of
+// detail messages, each packed into a google.protobuf.Any. A detail that
+// cannot be packed makes the result an INTERNAL error naming the detail type
+// and the packing failure; c and msg are dropped, since a reply must not
+// claim details it does not carry.
+func NewMeshError(c code.Code, msg string, details ...proto.Message) *MeshError {
+	st := &status.Status{Code: int32(c), Message: msg}
+	for _, d := range details {
+		a, err := anypb.New(d)
+		if err != nil {
+			return &MeshError{st: &status.Status{
+				Code:    int32(code.Code_INTERNAL),
+				Message: fmt.Sprintf("packing %T detail: %v", d, err),
+			}}
+		}
+		st.Details = append(st.Details, a)
+	}
+	return &MeshError{st: st}
 }
 
 // MeshErrorFromProto wraps st. The MeshError holds st itself.
 func MeshErrorFromProto(st *status.Status) *MeshError {
 	return &MeshError{st: st}
-}
-
-// WithDetails returns a copy of e with details packed into google.protobuf.Any
-// and appended. e is unchanged. The error is anypb's when a detail cannot be
-// encoded.
-func (e *MeshError) WithDetails(details ...proto.Message) (*MeshError, error) {
-	st := proto.Clone(e.st).(*status.Status)
-	for _, d := range details {
-		a, err := anypb.New(d)
-		if err != nil {
-			return nil, err
-		}
-		st.Details = append(st.Details, a)
-	}
-	return &MeshError{st: st}, nil
 }
 
 // Code returns the google.rpc.Code.

@@ -144,12 +144,8 @@ message metadata is read from the context.
 Search: func(ctx context.Context, req *pbx.ApiKey) (*pbx.ApiKey, error) {
     md := grpcmesh.IncomingMetadata(ctx) // the message metadata, nil outside a handler
     if md["Tenant"] == "" {
-        me, err := grpcmesh.NewMeshError(code.Code_INVALID_ARGUMENT, "Tenant is required").
-            WithDetails(&errdetails.ErrorInfo{Reason: "MISSING_TENANT", Domain: "pbx"})
-        if err != nil {
-            return nil, err
-        }
-        return nil, me
+        return nil, grpcmesh.NewMeshError(code.Code_INVALID_ARGUMENT, "Tenant is required",
+            &errdetails.ErrorInfo{Reason: "MISSING_TENANT", Domain: "pbx"})
     }
     return store.Search(req)
 }
@@ -219,8 +215,7 @@ Service Mesh API, and the transport are returned unchanged.
 `MeshError` wraps a `google.rpc.Status` and implements `error`.
 
 ```go
-me := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key")
-me, err := me.WithDetails(&errdetails.ErrorInfo{Reason: "GONE"}) // a copy with the details appended
+me := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key", &errdetails.ErrorInfo{Reason: "GONE"})
 me.Code()    // code.Code_NOT_FOUND
 me.Message() // "no such key"
 me.Details() // []*anypb.Any
@@ -230,9 +225,11 @@ me.Error()   // "NOT_FOUND: no such key"
 back := grpcmesh.MeshErrorFromProto(st) // wraps st itself
 ```
 
-`WithDetails` packs each message into `google.protobuf.Any` and returns a new
-`*MeshError`; the receiver is unchanged. Its error is `anypb`'s when a detail
-cannot be encoded.
+`NewMeshError` packs each detail message into `google.protobuf.Any`. A detail
+that cannot be packed, such as a message whose string field holds invalid
+UTF-8, makes the result an `INTERNAL` error whose message names the detail
+type and the packing failure, and the code and message given are dropped, so
+a reply never claims details it does not carry.
 
 ## Generated code
 

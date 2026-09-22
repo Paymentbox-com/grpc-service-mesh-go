@@ -77,10 +77,7 @@ func TestEndpointExposesTheIncomingMetadata(t *testing.T) {
 }
 
 func TestEndpointRepliesAMeshErrorAsAStatus(t *testing.T) {
-	me, err := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key").WithDetails(&errdetails.ErrorInfo{Reason: "GONE"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	me := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key", &errdetails.ErrorInfo{Reason: "GONE"})
 	ep := grpcmesh.NewEndpoint(testproto.ApiKeyTargets.Search, func(context.Context, *testproto.ApiKey) (*testproto.ApiKey, error) {
 		return nil, me
 	})

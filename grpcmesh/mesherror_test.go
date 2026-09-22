@@ -1,6 +1,7 @@
 package grpcmesh_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
@@ -26,12 +27,9 @@ func TestNewMeshErrorCarriesCodeAndMessage(t *testing.T) {
 	}
 }
 
-func TestWithDetailsRoundTripsThroughProto(t *testing.T) {
+func TestNewMeshErrorDetailsRoundTripThroughProto(t *testing.T) {
 	info := &errdetails.ErrorInfo{Reason: "EXPIRED", Domain: "pbx"}
-	me, err := grpcmesh.NewMeshError(code.Code_FAILED_PRECONDITION, "expired").WithDetails(info)
-	if err != nil {
-		t.Fatal(err)
-	}
+	me := grpcmesh.NewMeshError(code.Code_FAILED_PRECONDITION, "expired", info)
 
 	back := grpcmesh.MeshErrorFromProto(me.Proto())
 
@@ -50,19 +48,19 @@ func TestWithDetailsRoundTripsThroughProto(t *testing.T) {
 	}
 }
 
-func TestWithDetailsLeavesTheReceiverUnchanged(t *testing.T) {
-	base := grpcmesh.NewMeshError(code.Code_INVALID_ARGUMENT, "bad")
+func TestNewMeshErrorWithUnpackableDetailIsInternal(t *testing.T) {
+	bad := &errdetails.ErrorInfo{Reason: "\xff"} // invalid UTF-8 in a proto3 string
 
-	derived, err := base.WithDetails(&errdetails.ErrorInfo{Reason: "R"})
-	if err != nil {
-		t.Fatal(err)
-	}
+	me := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key", bad)
 
-	if len(base.Details()) != 0 {
-		t.Errorf("receiver gained %d details", len(base.Details()))
+	if me.Code() != code.Code_INTERNAL {
+		t.Errorf("Code() = %v, want INTERNAL", me.Code())
 	}
-	if len(derived.Details()) != 1 {
-		t.Errorf("result has %d details, want 1", len(derived.Details()))
+	if !strings.HasPrefix(me.Message(), "packing *errdetails.ErrorInfo detail: ") {
+		t.Errorf("Message() = %q, want the detail type and the packing failure", me.Message())
+	}
+	if len(me.Details()) != 0 {
+		t.Errorf("Details() = %v, want none", me.Details())
 	}
 }
 
