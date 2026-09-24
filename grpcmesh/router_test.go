@@ -7,8 +7,6 @@ import (
 
 	"github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
 	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/memtransport"
-	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto"
-	"github.com/Paymentbox-com/service-mesh-go/mesh"
 )
 
 func TestRouterClientUnknownTransport(t *testing.T) {
@@ -37,9 +35,7 @@ func TestRouterGetUnknownTransport(t *testing.T) {
 func TestRouterGetReturnsTheEntry(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	hub := memtransport.NewHub()
-	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
-		t.Fatal(err)
-	}
+	router.AddTransport("mem", memTransport(hub))
 
 	entry, err := router.Get("mem")
 	if err != nil {
@@ -54,9 +50,7 @@ func TestRouterGetReturnsTheEntry(t *testing.T) {
 func TestRouterClientBuildsOneStandaloneClientFromTheEntry(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	hub := memtransport.NewHub()
-	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
-		t.Fatal(err)
-	}
+	router.AddTransport("mem", memTransport(hub))
 
 	first, err := router.Client("mem")
 	if err != nil {
@@ -89,9 +83,7 @@ func TestRouterClientPropagatesNewClientError(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	hub := memtransport.NewHub()
 	hub.Fail = errors.New("connect refused")
-	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
-		t.Fatal(err)
-	}
+	router.AddTransport("mem", memTransport(hub))
 
 	_, err := router.Client("mem")
 
@@ -103,9 +95,7 @@ func TestRouterClientPropagatesNewClientError(t *testing.T) {
 func TestRouterClientSwitchesToTheRuntimeClientOnceAnRPCRuntimeExists(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
-		t.Fatal(err)
-	}
+	grpcmesh.AddTransport("mem", memTransport(hub))
 
 	standalone, err := grpcmesh.DefaultTransportRouter.Client("mem")
 	if err != nil {
@@ -128,43 +118,11 @@ func TestRouterClientSwitchesToTheRuntimeClientOnceAnRPCRuntimeExists(t *testing
 	}
 }
 
-func TestAddTransportRejectsANameAlreadyAddedAndKeepsTheFirstEntry(t *testing.T) {
-	router := grpcmesh.NewTransportRouter()
-	first, second := memtransport.NewHub(), memtransport.NewHub()
-	if err := router.AddTransport("mem", memTransport(first)); err != nil {
-		t.Fatal(err)
-	}
-
-	err := router.AddTransport("mem", grpcmesh.Transport{
-		Config:     mesh.Config{"url": "mem://second"},
-		ServiceMap: mesh.ServiceMap{Targets: []mesh.Target{testproto.ApiKeyTargets.Search}},
-		NewRuntime: second.NewRuntime,
-		NewClient:  second.NewClient,
-	})
-
-	if !errors.Is(err, grpcmesh.ErrDuplicateTransport) {
-		t.Fatalf("err = %v, want ErrDuplicateTransport", err)
-	}
-	if !strings.Contains(err.Error(), "mem") {
-		t.Errorf("err = %q, want the transport name in it", err)
-	}
-	if _, err := router.Client("mem"); err != nil {
-		t.Fatal(err)
-	}
-	if len(first.Clients()) != 1 || len(second.Clients()) != 0 {
-		t.Errorf("first hub built %d clients and second %d, want the first entry kept", len(first.Clients()), len(second.Clients()))
-	}
-}
-
 func TestRouterCloseClosesTheStandaloneClientsAndForgetsThem(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	hub := memtransport.NewHub()
-	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
-		t.Fatal(err)
-	}
-	if err := router.AddTransport("other", memTransport(hub)); err != nil {
-		t.Fatal(err)
-	}
+	router.AddTransport("mem", memTransport(hub))
+	router.AddTransport("other", memTransport(hub))
 	if _, err := router.Client("mem"); err != nil {
 		t.Fatal(err)
 	}
@@ -195,9 +153,7 @@ func TestRouterCloseClosesTheStandaloneClientsAndForgetsThem(t *testing.T) {
 func TestRouterCloseLeavesTheRuntimeClientToItsRuntime(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
-		t.Fatal(err)
-	}
+	grpcmesh.AddTransport("mem", memTransport(hub))
 	if _, err := grpcmesh.NewRPCRuntime("mem", "testproto"); err != nil {
 		t.Fatal(err)
 	}
@@ -218,9 +174,7 @@ func TestRouterCloseLeavesTheRuntimeClientToItsRuntime(t *testing.T) {
 func TestRouterCloseJoinsClientErrors(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	hub := memtransport.NewHub()
-	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
-		t.Fatal(err)
-	}
+	router.AddTransport("mem", memTransport(hub))
 	c, err := router.Client("mem")
 	if err != nil {
 		t.Fatal(err)

@@ -2,8 +2,6 @@ package grpcmesh_test
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"testing"
 
 	"github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
@@ -35,9 +33,7 @@ func TestRegisterAcceptsAGeneratedService(t *testing.T) {
 		Created: func(context.Context, *testproto.ApiKey) error { return nil },
 	}
 
-	if err := registry.Register(svc); err != nil {
-		t.Fatal(err)
-	}
+	registry.Register(svc)
 
 	endpoints, subscribers := registry.Endpoints("testproto"), registry.Subscribers("testproto")
 	if len(endpoints) != 1 || !endpoints[0].Target.Equal(testproto.ApiKeyTargets.Search) {
@@ -48,64 +44,12 @@ func TestRegisterAcceptsAGeneratedService(t *testing.T) {
 	}
 }
 
-func TestRegisterRejectsATargetRegisteredEarlierAndAddsNothing(t *testing.T) {
-	registry := grpcmesh.NewRegistry()
-	search := route("pbx", "pbx", "ApiKeyService", "Search")
-	if err := registry.Register(bindings{endpoints: []mesh.Endpoint{{Target: search}}}); err != nil {
-		t.Fatal(err)
-	}
-
-	err := registry.Register(bindings{
-		endpoints:   []mesh.Endpoint{{Target: search}},
-		subscribers: []mesh.Subscriber{{Target: topic("pbx", "pbx", "ApiKeyService", "Created")}},
-	})
-
-	if !errors.Is(err, grpcmesh.ErrDuplicateTarget) {
-		t.Fatalf("err = %v, want ErrDuplicateTarget", err)
-	}
-	if !strings.Contains(err.Error(), "pbx.ApiKeyService.Search") {
-		t.Errorf("err = %q, want the target in it", err)
-	}
-	if len(registry.Subscribers("pbx")) != 0 {
-		t.Error("the rejected service's other binding was added")
-	}
-}
-
-func TestRegisterRejectsATargetAppearingTwiceInOneService(t *testing.T) {
-	registry := grpcmesh.NewRegistry()
-	created := topic("pbx", "pbx", "ApiKeyService", "Created")
-
-	err := registry.Register(bindings{subscribers: []mesh.Subscriber{{Target: created}, {Target: created}}})
-
-	if !errors.Is(err, grpcmesh.ErrDuplicateTarget) {
-		t.Fatalf("err = %v, want ErrDuplicateTarget", err)
-	}
-	if len(registry.Subscribers("pbx")) != 0 {
-		t.Error("bindings were added")
-	}
-}
-
-func TestRegisterAllowsTheSameSegmentsWithAnotherKind(t *testing.T) {
-	registry := grpcmesh.NewRegistry()
-
-	err := registry.Register(bindings{
-		endpoints:   []mesh.Endpoint{{Target: route("pbx", "pbx", "Svc", "M")}},
-		subscribers: []mesh.Subscriber{{Target: topic("pbx", "pbx", "Svc", "M")}},
-	})
-
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestRegistryFiltersBindingsByDeploymentGroup(t *testing.T) {
 	registry := grpcmesh.NewRegistry()
-	if err := registry.Register(bindings{
+	registry.Register(bindings{
 		endpoints:   []mesh.Endpoint{{Target: route("pbx", "pbx", "A", "Get")}, {Target: route("billing", "billing", "B", "Get")}},
 		subscribers: []mesh.Subscriber{{Target: topic("pbx", "pbx", "A", "Made")}, {Target: topic("billing", "billing", "B", "Made")}},
-	}); err != nil {
-		t.Fatal(err)
-	}
+	})
 
 	endpoints, subscribers := registry.Endpoints("billing"), registry.Subscribers("billing")
 

@@ -25,14 +25,15 @@ var _ mesh.Runtime = (*RPCRuntime)(nil)
 // entry's ServiceMap, and those bindings. The runtime is built here, so
 // Underlying is set and the router hands out its Client from this point;
 // Start, Stop, and Running only delegate. Services registered afterwards are
-// not served. Errors are ErrUnknownTransport, ErrDuplicateRuntime, or the
+// not served. A second runtime for the same transport becomes the one whose
+// Client the router hands out. Errors are ErrUnknownTransport or the
 // transport constructor's own.
 func NewRPCRuntime(transport, deploymentGroup string) (*RPCRuntime, error) {
 	return newRPCRuntime(DefaultTransportRouter, DefaultRegistry, transport, deploymentGroup)
 }
 
 func newRPCRuntime(router *TransportRouter, registry *Registry, transport, group string) (*RPCRuntime, error) {
-	t, err := router.reserveRuntime(transport)
+	t, err := router.Get(transport)
 	if err != nil {
 		return nil, err
 	}

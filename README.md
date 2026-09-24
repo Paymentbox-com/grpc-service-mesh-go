@@ -50,7 +50,7 @@ import (
     "example.com/definitions/lib/go/servicemaps"
 )
 
-err := grpcmesh.AddTransport("nats", grpcmesh.Transport{
+grpcmesh.AddTransport("nats", grpcmesh.Transport{
     Config:     mesh.Config{nats.URLKey: os.Getenv("NATS_URL")},
     ServiceMap: servicemaps.Nats,
     NewRuntime: func(cfg mesh.Config, sm mesh.ServiceMap, e []mesh.Endpoint, s []mesh.Subscriber) (mesh.Runtime, error) {
@@ -72,9 +72,8 @@ closes every standalone client the router built and forgets it, and a process
 that only calls runs it before exit so the transport flushes what it has
 buffered; the runtime's `Stop` closes the client the runtime owns.
 
-Adding a name a second time returns `ErrDuplicateTransport` wrapped with the
-name and keeps the first entry. A transport that was not added yields
-`ErrUnknownTransport`, wrapped with the name, from `Client`, `Get`,
+`AddTransport` under a name already present replaces the entry. A transport
+that was not added yields `ErrUnknownTransport`, wrapped with the name, from `Client`, `Get`,
 `NewRPCRuntime`, `Call`, and `Publish`.
 
 ### Registering a service
@@ -84,7 +83,7 @@ application sets the ones it serves and registers the value in
 `grpcmesh.DefaultRegistry`. A nil field is not served.
 
 ```go
-err := grpcmesh.Register(pbx.ApiKeyService{
+grpcmesh.Register(pbx.ApiKeyService{
     Search: func(ctx context.Context, req *pbx.ApiKey) (*pbx.ApiKey, error) {
         key, ok := store.Find(req.GetFirstName())
         if !ok {
@@ -98,10 +97,8 @@ err := grpcmesh.Register(pbx.ApiKeyService{
 })
 ```
 
-Registering a binding for a `Target` that already has one, in this or an
-earlier registration, returns `ErrDuplicateTarget` wrapped with the target,
-and adds nothing from that registration. Two targets are the same when their
-segments and kind are equal.
+Every registered binding is kept, so two registrations of one `Target` hand
+the transport two bindings for it.
 
 ### Constructing and starting an RPCRuntime
 
@@ -119,7 +116,7 @@ has run are not served.
 
 ```go
 rt, err := grpcmesh.NewRPCRuntime("nats", "pbx")
-if err != nil { /* ErrUnknownTransport, ErrDuplicateRuntime, or the transport constructor's error */ }
+if err != nil { /* ErrUnknownTransport or the transport constructor's error */ }
 if err := rt.Start(ctx); err != nil { /* the transport's error */ }
 
 stop := make(chan os.Signal, 1)
@@ -134,8 +131,8 @@ _ = rt.Stop(drain)
 `RPCRuntime` implements `mesh.Runtime`. `Start`, `Stop`, `Running`, and
 `Client` go to the transport's runtime, which `Underlying()` returns.
 `Transport()` and `DeploymentGroup()` return what the runtime was built for.
-One `RPCRuntime` exists per transport on a router; a second construction for
-the same transport returns `ErrDuplicateRuntime` wrapped with the name.
+A second `RPCRuntime` for a transport becomes the one the router's `Client`
+uses.
 
 ### Handlers
 
