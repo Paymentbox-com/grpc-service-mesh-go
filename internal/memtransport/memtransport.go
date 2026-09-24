@@ -179,6 +179,8 @@ func (r *Runtime) Running() bool {
 // Client is an in-process mesh.Client. The exported fields are what it was
 // built with; Owner is the runtime it came from, nil for a standalone client.
 type Client struct {
+	// CloseErr is what Close returns.
+	CloseErr   error
 	Config     mesh.Config
 	ServiceMap mesh.ServiceMap
 	Owner      *Runtime
@@ -220,7 +222,7 @@ func (c *Client) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.closed = true
-	return nil
+	return c.CloseErr
 }
 
 // Requests returns the Request calls made so far, in order.

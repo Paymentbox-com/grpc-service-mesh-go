@@ -31,7 +31,8 @@ type Transport struct {
 }
 
 // TransportRouter maps transport names to Transport entries and hands out
-// one mesh.Client per transport. It is safe for concurrent use.
+// one mesh.Client per transport. Close releases the clients it built. It is
+// safe for concurrent use.
 type TransportRouter struct {
 	mu      sync.Mutex
 	entries map[string]*entry
@@ -140,4 +141,24 @@ func (r *TransportRouter) entry(name string) (*entry, error) {
 		return nil, fmt.Errorf("%w: %q", ErrUnknownTransport, name)
 	}
 	return e, nil
+}
+
+// Close closes every standalone client the router has built and forgets
+// them, so a later Client call builds a new one. A client shared with an
+// RPCRuntime belongs to that runtime and is released by its Stop. The
+// clients' errors are joined.
+func (r *TransportRouter) Close() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	var errs []error
+	for name, e := range r.entries {
+		if e.standalone == nil {
+			continue
+		}
+		if err := e.standalone.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("%s: %w", name, err))
+		}
+		e.standalone = nil
+	}
+	return errors.Join(errs...)
 }

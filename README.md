@@ -67,7 +67,10 @@ err := grpcmesh.AddTransport("nats", grpcmesh.Transport{
 shares the runtime's connection. Before one exists, it is a standalone client
 built once from the entry's `NewClient` with the entry's `Config` and
 `ServiceMap`, and cached. A process that only calls never constructs an
-`RPCRuntime` and uses the standalone client throughout.
+`RPCRuntime` and uses the standalone client throughout. `router.Close()`
+closes every standalone client the router built and forgets it, and a process
+that only calls runs it before exit so the transport flushes what it has
+buffered; the runtime's `Stop` closes the client the runtime owns.
 
 Adding a name a second time returns `ErrDuplicateTransport` wrapped with the
 name and keeps the first entry. A transport that was not added yields

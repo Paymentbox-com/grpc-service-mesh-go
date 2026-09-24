@@ -155,3 +155,81 @@ func TestAddTransportRejectsANameAlreadyAddedAndKeepsTheFirstEntry(t *testing.T)
 		t.Errorf("first hub built %d clients and second %d, want the first entry kept", len(first.Clients()), len(second.Clients()))
 	}
 }
+
+func TestRouterCloseClosesTheStandaloneClientsAndForgetsThem(t *testing.T) {
+	router := grpcmesh.NewTransportRouter()
+	hub := memtransport.NewHub()
+	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
+	if err := router.AddTransport("other", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := router.Client("mem"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := router.Client("other"); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := router.Close(); err != nil {
+		t.Fatal(err)
+	}
+	again, err := router.Client("mem")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	clients := hub.Clients()
+	if len(clients) != 3 {
+		t.Fatalf("NewClient ran %d times, want 2 before Close and 1 after", len(clients))
+	}
+	if !clients[0].Closed() || !clients[1].Closed() {
+		t.Error("a standalone client built before Close is still open")
+	}
+	if again.(*memtransport.Client).Closed() {
+		t.Error("the client built after Close is closed")
+	}
+}
+
+func TestRouterCloseLeavesTheRuntimeClientToItsRuntime(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	if err := grpcmesh.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := grpcmesh.NewRPCRuntime("mem", "testproto"); err != nil {
+		t.Fatal(err)
+	}
+	owned, err := grpcmesh.DefaultTransportRouter.Client("mem")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := grpcmesh.DefaultTransportRouter.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	if owned.(*memtransport.Client).Closed() {
+		t.Error("Close closed the runtime-owned client")
+	}
+}
+
+func TestRouterCloseJoinsClientErrors(t *testing.T) {
+	router := grpcmesh.NewTransportRouter()
+	hub := memtransport.NewHub()
+	if err := router.AddTransport("mem", memTransport(hub)); err != nil {
+		t.Fatal(err)
+	}
+	c, err := router.Client("mem")
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.(*memtransport.Client).CloseErr = errors.New("flush failed")
+
+	err = router.Close()
+
+	if !errors.Is(err, c.(*memtransport.Client).CloseErr) {
+		t.Errorf("err = %v, want the client's close error", err)
+	}
+}
