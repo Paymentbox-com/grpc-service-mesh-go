@@ -28,13 +28,18 @@ func freshSingletons(t *testing.T) {
 	})
 }
 
-// memTransport returns a Transport entry served by hub.
-func memTransport(hub *memtransport.Hub) grpcmesh.Transport {
+// memTransport returns a Transport entry served by hub, with the client an
+// application would build.
+func memTransport(t *testing.T, hub *memtransport.Hub) grpcmesh.Transport {
+	t.Helper()
+	c, err := hub.NewClient(memConfig, memServiceMap)
+	if err != nil {
+		t.Fatal(err)
+	}
 	return grpcmesh.Transport{
+		Client:     c,
 		Config:     memConfig,
-		ServiceMap: memServiceMap,
 		NewRuntime: hub.NewRuntime,
-		NewClient:  hub.NewClient,
 	}
 }
 
@@ -44,7 +49,7 @@ func serveMem(t *testing.T, svc grpcmesh.RPCService) *memtransport.Hub {
 	t.Helper()
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	grpcmesh.AddTransport("mem", memTransport(t, hub))
 	grpcmesh.Register(svc)
 	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
 	if err != nil {
@@ -63,9 +68,13 @@ func serveRaw(t *testing.T, endpoints []mesh.Endpoint, subscribers []mesh.Subscr
 	t.Helper()
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	grpcmesh.AddTransport("mem", memTransport(t, hub))
 	cfg := mesh.Config{mesh.DeploymentGroupKey: "testproto"}
-	rt, err := hub.NewRuntime(cfg, memServiceMap, endpoints, subscribers)
+	c, err := hub.NewClient(cfg, memServiceMap)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt, err := hub.NewRuntime(c, cfg, endpoints, subscribers)
 	if err != nil {
 		t.Fatal(err)
 	}

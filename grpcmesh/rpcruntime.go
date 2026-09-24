@@ -21,13 +21,11 @@ var _ mesh.Runtime = (*RPCRuntime)(nil)
 // process singletons. It takes the Endpoints and Subscribers registered in
 // DefaultRegistry whose Targets carry deploymentGroup, takes the Transport
 // entry from DefaultTransportRouter, and calls the entry's NewRuntime with
-// the entry's Config plus deployment_group set to deploymentGroup, the
-// entry's ServiceMap, and those bindings. The runtime is built here, so
-// Underlying is set and the router hands out its Client from this point;
-// Start, Stop, and Running only delegate. Services registered afterwards are
-// not served. A second runtime for the same transport becomes the one whose
-// Client the router hands out. Errors are ErrUnknownTransport or the
-// transport constructor's own.
+// the entry's Client, the entry's Config plus deployment_group set to
+// deploymentGroup, and those bindings. The runtime is built here, so
+// Underlying is set from this point; Start, Stop, and Running only delegate.
+// Services registered afterwards are not served. Errors are
+// ErrUnknownTransport or the transport constructor's own.
 func NewRPCRuntime(transport, deploymentGroup string) (*RPCRuntime, error) {
 	return newRPCRuntime(DefaultTransportRouter, DefaultRegistry, transport, deploymentGroup)
 }
@@ -42,11 +40,8 @@ func newRPCRuntime(router *TransportRouter, registry *Registry, transport, group
 	maps.Copy(cfg, t.Config)
 	cfg[mesh.DeploymentGroupKey] = group
 
-	rt, err := t.NewRuntime(cfg, t.ServiceMap, registry.Endpoints(group), registry.Subscribers(group))
+	rt, err := t.NewRuntime(t.Client, cfg, registry.Endpoints(group), registry.Subscribers(group))
 	if err != nil {
-		return nil, err
-	}
-	if err := router.bindRuntime(transport, rt); err != nil {
 		return nil, err
 	}
 	return &RPCRuntime{transport: transport, group: group, underlying: rt}, nil
@@ -67,7 +62,7 @@ func (r *RPCRuntime) DeploymentGroup() string {
 	return r.group
 }
 
-// Client returns the underlying runtime's client.
+// Client returns the underlying runtime's client, the one the entry holds.
 func (r *RPCRuntime) Client() mesh.Client {
 	return r.underlying.Client()
 }
@@ -77,7 +72,8 @@ func (r *RPCRuntime) Start(ctx context.Context) error {
 	return r.underlying.Start(ctx)
 }
 
-// Stop stops the underlying runtime, draining until ctx is done.
+// Stop stops the underlying runtime, draining until ctx is done. The
+// underlying runtime closes its client.
 func (r *RPCRuntime) Stop(ctx context.Context) error {
 	return r.underlying.Stop(ctx)
 }

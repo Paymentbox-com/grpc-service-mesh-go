@@ -1,6 +1,7 @@
 // Package memtransport is an in-process Service Mesh API transport for the
-// grpcmesh tests. A Hub stands in for the broker: every Runtime and Client it
-// builds delivers through it, and it records what it built.
+// grpcmesh tests. A Hub stands in for the broker: every Client it builds, and
+// every Runtime bound on one of those clients, delivers through it, and it
+// records what it built.
 //
 // Request finds the first endpoint with an equal target across the hub's
 // running runtimes and returns the handler's reply or error. Publish delivers
@@ -11,6 +12,7 @@ package memtransport
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
@@ -29,10 +31,10 @@ type Sent struct {
 	Options map[string]string
 }
 
-// Hub delivers messages between the runtimes and clients it builds and
-// records the constructor arguments it received.
+// Hub delivers messages between the clients it builds and the runtimes bound
+// on them, and records the constructor arguments it received.
 type Hub struct {
-	// Fail, when set, is returned by NewRuntime and NewClient.
+	// Fail, when set, is returned by NewRuntime.
 	Fail error
 
 	mu       sync.Mutex
@@ -45,10 +47,25 @@ func NewHub() *Hub {
 	return &Hub{}
 }
 
-// NewRuntime has the signature of grpcmesh.Transport.NewRuntime.
-func (h *Hub) NewRuntime(cfg mesh.Config, sm mesh.ServiceMap, endpoints []mesh.Endpoint, subscribers []mesh.Subscriber) (mesh.Runtime, error) {
+// NewClient builds the client an application would hand to
+// grpcmesh.Transport.
+func (h *Hub) NewClient(cfg mesh.Config, sm mesh.ServiceMap) (mesh.Client, error) {
+	c := &Client{Config: cfg, ServiceMap: sm, hub: h}
+	h.mu.Lock()
+	h.clients = append(h.clients, c)
+	h.mu.Unlock()
+	return c, nil
+}
+
+// NewRuntime has the signature of grpcmesh.Transport.NewRuntime. The client
+// is one this package built, and the runtime binds on that client's hub.
+func (h *Hub) NewRuntime(client mesh.Client, cfg mesh.Config, endpoints []mesh.Endpoint, subscribers []mesh.Subscriber) (mesh.Runtime, error) {
 	if h.Fail != nil {
 		return nil, h.Fail
+	}
+	c, ok := client.(*Client)
+	if !ok {
+		return nil, fmt.Errorf("memtransport: client is %T, want *memtransport.Client", client)
 	}
 	if cfg[mesh.DeploymentGroupKey] == "" {
 		return nil, mesh.ErrNoDeploymentGroup
@@ -63,34 +80,21 @@ func (h *Hub) NewRuntime(cfg mesh.Config, sm mesh.ServiceMap, endpoints []mesh.E
 			return nil, mesh.ErrKindMismatch
 		}
 	}
-	rt := &Runtime{Config: cfg, ServiceMap: sm, Endpoints: endpoints, Subscribers: subscribers, hub: h}
-	rt.client = &Client{Config: cfg, ServiceMap: sm, hub: h, Owner: rt}
-	h.mu.Lock()
-	h.runtimes = append(h.runtimes, rt)
-	h.mu.Unlock()
+	rt := &Runtime{Config: cfg, Endpoints: endpoints, Subscribers: subscribers, client: c}
+	c.hub.mu.Lock()
+	c.hub.runtimes = append(c.hub.runtimes, rt)
+	c.hub.mu.Unlock()
 	return rt, nil
 }
 
-// NewClient has the signature of grpcmesh.Transport.NewClient.
-func (h *Hub) NewClient(cfg mesh.Config, sm mesh.ServiceMap) (mesh.Client, error) {
-	if h.Fail != nil {
-		return nil, h.Fail
-	}
-	c := &Client{Config: cfg, ServiceMap: sm, hub: h}
-	h.mu.Lock()
-	h.clients = append(h.clients, c)
-	h.mu.Unlock()
-	return c, nil
-}
-
-// Runtimes returns the runtimes built so far, in order.
+// Runtimes returns the runtimes bound on this hub so far, in order.
 func (h *Hub) Runtimes() []*Runtime {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	return append([]*Runtime(nil), h.runtimes...)
 }
 
-// Clients returns the standalone clients built so far, in order.
+// Clients returns the clients built so far, in order.
 func (h *Hub) Clients() []*Client {
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -130,11 +134,9 @@ func (h *Hub) publish(ctx context.Context, msg mesh.Message) error {
 // built with.
 type Runtime struct {
 	Config      mesh.Config
-	ServiceMap  mesh.ServiceMap
 	Endpoints   []mesh.Endpoint
 	Subscribers []mesh.Subscriber
 
-	hub    *Hub
 	client *Client
 
 	mu      sync.Mutex
@@ -144,7 +146,7 @@ type Runtime struct {
 
 var _ mesh.Runtime = (*Runtime)(nil)
 
-// Client returns the client sharing this runtime.
+// Client returns the client the runtime was built on.
 func (r *Runtime) Client() mesh.Client {
 	return r.client
 }
@@ -160,13 +162,13 @@ func (r *Runtime) Start(context.Context) error {
 	return nil
 }
 
-// Stop stops receiving.
+// Stop stops receiving and closes the client.
 func (r *Runtime) Stop(context.Context) error {
 	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.running = false
 	r.stopped = true
-	return nil
+	r.mu.Unlock()
+	return r.client.Close()
 }
 
 // Running reports whether Start has run and Stop has not.
@@ -177,13 +179,12 @@ func (r *Runtime) Running() bool {
 }
 
 // Client is an in-process mesh.Client. The exported fields are what it was
-// built with; Owner is the runtime it came from, nil for a standalone client.
+// built with.
 type Client struct {
 	// CloseErr is what Close returns.
 	CloseErr   error
 	Config     mesh.Config
 	ServiceMap mesh.ServiceMap
-	Owner      *Runtime
 
 	hub *Hub
 

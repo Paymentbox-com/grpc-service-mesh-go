@@ -11,10 +11,10 @@ import (
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
 )
 
-func TestNewRPCRuntimeHandsTheTransportItsBindingsMapAndConfig(t *testing.T) {
+func TestNewRPCRuntimeHandsTheTransportItsBindingsAndConfig(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	grpcmesh.AddTransport("mem", memTransport(t, hub))
 	grpcmesh.Register(bindings{
 		endpoints:   []mesh.Endpoint{{Target: route("testproto", "testproto", "A", "Get")}, {Target: route("other", "other", "B", "Get")}},
 		subscribers: []mesh.Subscriber{{Target: topic("testproto", "testproto", "A", "Made")}, {Target: topic("other", "other", "B", "Made")}},
@@ -32,14 +32,8 @@ func TestNewRPCRuntimeHandsTheTransportItsBindingsMapAndConfig(t *testing.T) {
 	if rt.Underlying() != built[0] {
 		t.Error("Underlying() is not the runtime the transport built")
 	}
-	if c, err := grpcmesh.DefaultTransportRouter.Client("mem"); err != nil || c != built[0].Client() {
-		t.Errorf("router Client() before Start = %v, %v; want the runtime's client", c, err)
-	}
 	if built[0].Config[mesh.DeploymentGroupKey] != "testproto" || built[0].Config["url"] != memConfig["url"] {
 		t.Errorf("runtime config = %v, want the entry config plus deployment_group", built[0].Config)
-	}
-	if len(built[0].ServiceMap.Targets) != len(memServiceMap.Targets) {
-		t.Errorf("runtime service map = %v, want the entry's", built[0].ServiceMap)
 	}
 	if len(built[0].Endpoints) != 1 || built[0].Endpoints[0].Target.Segments[0] != "testproto" {
 		t.Errorf("runtime endpoints = %v, want only the testproto one", built[0].Endpoints)
@@ -52,10 +46,29 @@ func TestNewRPCRuntimeHandsTheTransportItsBindingsMapAndConfig(t *testing.T) {
 	}
 }
 
+func TestNewRPCRuntimeHandsTheTransportTheEntryClient(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	entry := memTransport(t, hub)
+	grpcmesh.AddTransport("mem", entry)
+
+	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if hub.Runtimes()[0].Client() != entry.Client {
+		t.Error("NewRuntime received a client other than the entry's")
+	}
+	if rt.Client() != entry.Client {
+		t.Error("Client() is not the entry's client")
+	}
+}
+
 func TestNewRPCRuntimeDeploymentGroupOverridesTheEntryConfig(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	entry := memTransport(hub)
+	entry := memTransport(t, hub)
 	entry.Config = mesh.Config{mesh.DeploymentGroupKey: "configured"}
 	grpcmesh.AddTransport("mem", entry)
 
@@ -84,8 +97,8 @@ func TestNewRPCRuntimeUnknownTransport(t *testing.T) {
 func TestNewRPCRuntimePropagatesTheTransportConstructorError(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
+	grpcmesh.AddTransport("mem", memTransport(t, hub))
 	hub.Fail = errors.New("bad url")
-	grpcmesh.AddTransport("mem", memTransport(hub))
 
 	_, err := grpcmesh.NewRPCRuntime("mem", "testproto")
 
@@ -97,7 +110,7 @@ func TestNewRPCRuntimePropagatesTheTransportConstructorError(t *testing.T) {
 func TestRPCRuntimeDelegatesTheLifecycle(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(hub))
+	grpcmesh.AddTransport("mem", memTransport(t, hub))
 	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
 	if err != nil {
 		t.Fatal(err)
@@ -113,14 +126,33 @@ func TestRPCRuntimeDelegatesTheLifecycle(t *testing.T) {
 	if !rt.Running() || !underlying.Running() {
 		t.Error("not running after Start")
 	}
-	if rt.Client() != underlying.Client() {
-		t.Error("Client() is not the underlying runtime's client")
-	}
 	if err := rt.Stop(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if rt.Running() || underlying.Running() {
 		t.Error("running after Stop")
+	}
+}
+
+func TestRPCRuntimeStopLeavesTheClientClosed(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	entry := memTransport(t, hub)
+	grpcmesh.AddTransport("mem", entry)
+	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := rt.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := rt.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	if !entry.Client.(*memtransport.Client).Closed() {
+		t.Error("the entry's client is open after Stop")
 	}
 }
 
