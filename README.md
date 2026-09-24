@@ -73,7 +73,7 @@ only calls builds its clients, adds them, and runs `router.Close()` before
 exit, which closes every entry's client and joins their errors, so the
 transport flushes what it has buffered. The entries stay after `Close`, and a
 `Client` call after it returns the closed client. An `RPCRuntime` for a
-transport is bound on the entry's client, and its `Stop` closes that client
+transport is built from the entry's client, and its `Stop` closes that client
 as well.
 
 `AddTransport` under a name already present replaces the entry. A transport
@@ -358,7 +358,7 @@ Tool versions are pinned in `mise.toml` and installed with `mise install`.
 | `just check`  | format check, vet, test, vulnerability scan, lint; what CI runs           |
 
 The tests run against `internal/memtransport`, an in-process transport
-whose `Hub` builds `mesh.Client` values and binds `mesh.Runtime` values on
+whose `Hub` builds `mesh.Client` values and `mesh.Runtime` values on
 them. They deliver to each other and record what they were built with and
 what they sent. Nothing
 in this repository needs a broker. Tests that need a transport live outside
