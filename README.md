@@ -64,7 +64,7 @@ err := grpcmesh.AddTransport("nats", grpcmesh.Transport{
 
 `router.Client(name)` returns the client for a transport. Once an
 `RPCRuntime` exists for that transport, it is the runtime's `Client()`, which
-shares the runtime's connection. Before one exists, it is a standalone client
+is the runtime's connection. Before one exists, it is a standalone client
 built once from the entry's `NewClient` with the entry's `Config` and
 `ServiceMap`, and cached. A process that only calls never constructs an
 `RPCRuntime` and uses the standalone client throughout. `router.Close()`
