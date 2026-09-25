@@ -246,8 +246,8 @@ a reply never claims details it does not carry.
 The generator is `grpc-service-mesh-gen` from the specification repository:
 
 ```sh
-go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.4.0
-grpc-service-mesh-gen --definitions definitions --out lib --lang go,ruby
+go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.5.0
+grpc-service-mesh-gen --definitions definitions --go_out=lib/go --ruby_out=lib/ruby
 ```
 
 The generator reads `mesh/options.proto` from its own module version and
