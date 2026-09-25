@@ -28,9 +28,9 @@ over NATS, with the Ruby contract in
 
 ## Usage
 
-The examples use the `pbx.ApiKeyService` from the specification: a ROUTE
-method `Search` and a TOPIC method `Created`, served over the transport
-named `nats` in deployment group `pbx`. The generated package is `pbx` and
+The examples use the `shop.OrderService` from the specification: a ROUTE
+method `Place` and a TOPIC method `Placed`, served over the transport
+named `nats` in deployment group `shop`. The generated package is `shop` and
 the generated per-transport maps are in `servicemaps`.
 
 ### Configuring the TransportRouter at boot
@@ -48,7 +48,7 @@ import (
     "github.com/Paymentbox-com/service-mesh-go/mesh"
     "github.com/Paymentbox-com/service-mesh-nats-go/nats"
 
-    "example.com/definitions/lib/go/servicemaps"
+    "example.com/definitions/servicemaps"
 )
 
 cfg := mesh.Config{nats.URLKey: os.Getenv("NATS_URL")}
@@ -87,15 +87,14 @@ application sets the ones it serves and registers the value in
 `grpcmesh.DefaultRegistry`. A nil field is not served.
 
 ```go
-grpcmesh.Register(pbx.ApiKeyService{
-    Search: func(ctx context.Context, req *pbx.ApiKey) (*pbx.ApiKey, error) {
-        key, ok := store.Find(req.GetFirstName())
-        if !ok {
-            return nil, grpcmesh.NewNotFoundError("no such key")
+grpcmesh.Register(shop.OrderService{
+    Place: func(ctx context.Context, req *shop.Order) (*shop.Order, error) {
+        if !store.InStock(req.GetItem()) {
+            return nil, grpcmesh.NewNotFoundError("no such item")
         }
-        return key, nil
+        return &shop.Order{Id: proto.String(store.Place(req.GetItem())), Item: req.Item}, nil
     },
-    Created: func(ctx context.Context, ev *pbx.ApiKey) error {
+    Placed: func(ctx context.Context, ev *shop.Order) error {
         return audit.Record(ev)
     },
 })
@@ -118,7 +117,7 @@ entry's `Config` is overwritten. Services registered after the constructor
 has run are not served.
 
 ```go
-rt, err := grpcmesh.NewRPCRuntime("nats", "pbx")
+rt, err := grpcmesh.NewRPCRuntime("nats", "shop")
 if err != nil { /* ErrUnknownTransport or the transport constructor's error */ }
 if err := rt.Start(ctx); err != nil { /* the transport's error */ }
 
@@ -143,13 +142,13 @@ error. A `*MeshError` is the application failure the caller receives. Inbound
 message metadata is read from the context.
 
 ```go
-Search: func(ctx context.Context, req *pbx.ApiKey) (*pbx.ApiKey, error) {
+Place: func(ctx context.Context, req *shop.Order) (*shop.Order, error) {
     md := grpcmesh.IncomingMetadata(ctx) // the message metadata, nil outside a handler
     if md["Tenant"] == "" {
         return nil, grpcmesh.NewInvalidArgumentError("Tenant is required",
-            &errdetails.ErrorInfo{Reason: "MISSING_TENANT", Domain: "pbx"})
+            &errdetails.ErrorInfo{Reason: "MISSING_TENANT", Domain: "shop"})
     }
-    return store.Search(req)
+    return &shop.Order{Id: proto.String(store.Place(req.GetItem())), Item: req.Item}, nil
 }
 ```
 
@@ -179,12 +178,12 @@ transport's per-call options ride on the context.
 ctx := grpcmesh.WithOutgoingMetadata(ctx, map[string]string{"Tenant": "acme"})
 ctx = grpcmesh.WithTransportOptions(ctx, map[string]string{nats.RequestTimeoutKey: "2s"})
 
-key, err := pbx.ApiKeyClient.Search(ctx, &pbx.ApiKey{FirstName: proto.String("ada")})
+order, err := shop.OrderClient.Place(ctx, &shop.Order{Item: proto.String("book")})
 
 var me *grpcmesh.MeshError
 switch {
 case err == nil:
-    fmt.Println(key.GetLastName())
+    fmt.Println(order.GetId())
 case errors.As(err, &me):
     // me.Code(), me.Message(), me.Details(); a detail unpacks with UnmarshalTo
     for _, d := range me.Details() {
@@ -200,7 +199,7 @@ default:
     // nats.ErrNoResponders, nats.ErrTimeout, ...
 }
 
-err = pbx.ApiKeyClient.Created(ctx, key)
+err = shop.OrderClient.Placed(ctx, order)
 ```
 
 Every message the package sends carries `Content-Type: application/x-protobuf`;
@@ -217,12 +216,12 @@ Service Mesh API, and the transport are returned unchanged.
 `MeshError` wraps a `google.rpc.Status` and implements `error`.
 
 ```go
-me := grpcmesh.NewNotFoundError("no such key", &errdetails.ErrorInfo{Reason: "GONE"})
+me := grpcmesh.NewNotFoundError("no such item", &errdetails.ErrorInfo{Reason: "GONE"})
 me.Code()    // grpcmesh.NotFound, which is code.Code_NOT_FOUND
-me.Message() // "no such key"
+me.Message() // "no such item"
 me.Details() // []*anypb.Any
 me.Proto()   // the wrapped *status.Status
-me.Error()   // "NOT_FOUND: no such key"
+me.Error()   // "NOT_FOUND: no such item"
 
 back := grpcmesh.MeshErrorFromProto(st) // wraps st itself
 ```
@@ -246,7 +245,7 @@ a reply never claims details it does not carry.
 The generator is `grpc-service-mesh-gen` from the specification repository:
 
 ```sh
-go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.5.0
+go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.5.1
 grpc-service-mesh-gen --definitions definitions --go_out=lib/go --ruby_out=lib/ruby
 ```
 
@@ -255,14 +254,14 @@ puts that directory on every `protoc` run.
 
 For each service it emits a targets value, an
 `RPCService` struct, and a client. This is the reference output for the
-`ApiKeyService` in `internal/testproto`, which the tests use in place of a
+`OrderService` in `internal/testproto`, which the tests use in place of a
 generated package. A real directory substitutes its own package name,
 segments, transport name, and deployment group, and takes its message types
 from the standard `protoc-gen-go` output beside it.
 
 ```go
 // Code generated by grpc-service-mesh-gen. DO NOT EDIT.
-// source: testproto/api_key.proto
+// source: testproto/order.proto
 
 package testproto
 
@@ -273,68 +272,68 @@ import (
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
 )
 
-// ApiKeyTargets holds one Target per rpc method of ApiKeyService.
-var ApiKeyTargets = struct {
-	Search  mesh.Target
-	Created mesh.Target
+// OrderTargets holds one Target per rpc method of OrderService.
+var OrderTargets = struct {
+	Place  mesh.Target
+	Placed mesh.Target
 }{
-	Search: mesh.Target{
-		Segments: []string{"testproto", "ApiKeyService", "Search"},
+	Place: mesh.Target{
+		Segments: []string{"shop", "OrderService", "Place"},
 		Kind:     mesh.KindRoute,
 		Metadata: map[string]string{
-			"deployment_group": "testproto",
+			"deployment_group": "shop",
 			"transport":        "mem",
 		},
 	},
-	Created: mesh.Target{
-		Segments: []string{"testproto", "ApiKeyService", "Created"},
+	Placed: mesh.Target{
+		Segments: []string{"shop", "OrderService", "Placed"},
 		Kind:     mesh.KindTopic,
 		Metadata: map[string]string{
-			"deployment_group": "testproto",
+			"deployment_group": "shop",
 			"transport":        "mem",
 			"consumer_group":   "audit",
 		},
 	},
 }
 
-// ApiKeyService is the RPCService for ApiKeyService. A nil field is not
+// OrderService is the RPCService for OrderService. A nil field is not
 // served.
-type ApiKeyService struct {
-	Search  func(context.Context, *ApiKey) (*ApiKey, error)
-	Created func(context.Context, *ApiKey) error
+type OrderService struct {
+	Place  func(context.Context, *Order) (*Order, error)
+	Placed func(context.Context, *Order) error
 }
 
 // Endpoints returns the Endpoints of the ROUTE methods that are set.
-func (s ApiKeyService) Endpoints() []mesh.Endpoint {
+func (s OrderService) Endpoints() []mesh.Endpoint {
 	var out []mesh.Endpoint
-	if s.Search != nil {
-		out = append(out, grpcmesh.NewEndpoint(ApiKeyTargets.Search, s.Search))
+	if s.Place != nil {
+		out = append(out, grpcmesh.NewEndpoint(OrderTargets.Place, s.Place))
 	}
 	return out
 }
 
 // Subscribers returns the Subscribers of the TOPIC methods that are set.
-func (s ApiKeyService) Subscribers() []mesh.Subscriber {
+func (s OrderService) Subscribers() []mesh.Subscriber {
 	var out []mesh.Subscriber
-	if s.Created != nil {
-		out = append(out, grpcmesh.NewSubscriber(ApiKeyTargets.Created, s.Created))
+	if s.Placed != nil {
+		out = append(out, grpcmesh.NewSubscriber(OrderTargets.Placed, s.Placed))
 	}
 	return out
 }
 
-type apiKeyClient struct{}
+type orderClient struct{}
 
-// ApiKeyClient calls ApiKeyService through grpcmesh.DefaultTransportRouter.
-var ApiKeyClient apiKeyClient
+// OrderClient calls OrderService through grpcmesh.DefaultTransportRouter.
+var OrderClient orderClient
 
-// Search calls the ROUTE method Search.
-func (apiKeyClient) Search(ctx context.Context, req *ApiKey) (*ApiKey, error) {
-	return grpcmesh.Call[*ApiKey, *ApiKey](ctx, ApiKeyTargets.Search, req)
+// Place calls the ROUTE method Place.
+func (orderClient) Place(ctx context.Context, req *Order) (*Order, error) {
+	return grpcmesh.Call[*Order, *Order](ctx, OrderTargets.Place, req)
 }
 
-// Created publishes to the TOPIC method Created.
-func (apiKeyClient) Created(ctx context.Context, req *ApiKey) error {
-	return grpcmesh.Publish(ctx, ApiKeyTargets.Created, req)
+// Placed publishes to the TOPIC method Placed.
+func (orderClient) Placed(ctx context.Context, req *Order) error {
+	return grpcmesh.Publish(ctx, OrderTargets.Placed, req)
 }
 ```
 
@@ -390,7 +389,7 @@ Tool versions are pinned in `mise.toml` and installed with `mise install`.
 | `just test`   | run the suite with the race detector                                      |
 | `just proto`  | run `just proto-spec` and `just proto-test`                                 |
 | `just proto-spec` | compile `mesh/options.proto` from grpc-service-mesh-api at `spec_tag` into `meshoptions/options.pb.go` |
-| `just proto-test` | regenerate `internal/testproto/api_key.pb.go` with `protoc` and `protoc-gen-go` |
+| `just proto-test` | regenerate `internal/testproto/order.pb.go` with `protoc` and `protoc-gen-go` |
 | `just check`  | format check, vet, test, vulnerability scan, lint; what CI runs           |
 
 The tests run against `internal/memtransport`, an in-process transport

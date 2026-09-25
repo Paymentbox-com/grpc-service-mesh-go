@@ -28,28 +28,28 @@ func statusOf(t *testing.T, reply mesh.Message) *status.Status {
 }
 
 func TestEndpointRepliesWithTheEncodedResponse(t *testing.T) {
-	var got *testproto.ApiKey
-	ep := grpcmesh.NewEndpoint(testproto.ApiKeyTargets.Search, func(_ context.Context, req *testproto.ApiKey) (*testproto.ApiKey, error) {
+	var got *testproto.Order
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(_ context.Context, req *testproto.Order) (*testproto.Order, error) {
 		got = req
-		return apiKey("reply"), nil
+		return order("reply"), nil
 	})
 
-	reply, err := ep.Handler(context.Background(), mesh.Message{Payload: mustMarshal(t, apiKey("ask"))})
+	reply, err := ep.Handler(context.Background(), mesh.Message{Payload: mustMarshal(t, order("ask"))})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if !ep.Target.Equal(testproto.ApiKeyTargets.Search) {
+	if !ep.Target.Equal(testproto.OrderTargets.Place) {
 		t.Errorf("endpoint target = %v", ep.Target)
 	}
-	if got.GetFirstName() != "ask" {
+	if got.GetId() != "ask" {
 		t.Errorf("handler received %v", got)
 	}
-	var resp testproto.ApiKey
+	var resp testproto.Order
 	if err := proto.Unmarshal(reply.Payload, &resp); err != nil {
 		t.Fatal(err)
 	}
-	if resp.GetFirstName() != "reply" {
+	if resp.GetId() != "reply" {
 		t.Errorf("reply decodes to %v", &resp)
 	}
 	if reply.Metadata[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
@@ -62,9 +62,9 @@ func TestEndpointRepliesWithTheEncodedResponse(t *testing.T) {
 
 func TestEndpointExposesTheIncomingMetadata(t *testing.T) {
 	var seen map[string]string
-	ep := grpcmesh.NewEndpoint(testproto.ApiKeyTargets.Search, func(ctx context.Context, _ *testproto.ApiKey) (*testproto.ApiKey, error) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
 		seen = grpcmesh.IncomingMetadata(ctx)
-		return &testproto.ApiKey{}, nil
+		return &testproto.Order{}, nil
 	})
 
 	if _, err := ep.Handler(context.Background(), mesh.Message{Metadata: map[string]string{"Request-Id": "7"}}); err != nil {
@@ -78,7 +78,7 @@ func TestEndpointExposesTheIncomingMetadata(t *testing.T) {
 
 func TestEndpointRepliesAMeshErrorAsAStatus(t *testing.T) {
 	me := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key", &errdetails.ErrorInfo{Reason: "GONE"})
-	ep := grpcmesh.NewEndpoint(testproto.ApiKeyTargets.Search, func(context.Context, *testproto.ApiKey) (*testproto.ApiKey, error) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(context.Context, *testproto.Order) (*testproto.Order, error) {
 		return nil, me
 	})
 
@@ -100,7 +100,7 @@ func TestEndpointRepliesAMeshErrorAsAStatus(t *testing.T) {
 }
 
 func TestEndpointRepliesUnknownForAnyOtherError(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(testproto.ApiKeyTargets.Search, func(context.Context, *testproto.ApiKey) (*testproto.ApiKey, error) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(context.Context, *testproto.Order) (*testproto.Order, error) {
 		return nil, errors.New("database down")
 	})
 
@@ -119,7 +119,7 @@ func TestEndpointRepliesUnknownForAnyOtherError(t *testing.T) {
 }
 
 func TestEndpointRepliesUnknownForAPanic(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(testproto.ApiKeyTargets.Search, func(context.Context, *testproto.ApiKey) (*testproto.ApiKey, error) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(context.Context, *testproto.Order) (*testproto.Order, error) {
 		panic("boom")
 	})
 
@@ -138,7 +138,7 @@ func TestEndpointRepliesUnknownForAPanic(t *testing.T) {
 
 func TestEndpointRepliesInternalForAnUndecodableRequest(t *testing.T) {
 	called := false
-	ep := grpcmesh.NewEndpoint(testproto.ApiKeyTargets.Search, func(context.Context, *testproto.ApiKey) (*testproto.ApiKey, error) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(context.Context, *testproto.Order) (*testproto.Order, error) {
 		called = true
 		return nil, nil
 	})
@@ -160,25 +160,25 @@ func TestEndpointRepliesInternalForAnUndecodableRequest(t *testing.T) {
 }
 
 func TestSubscriberDeliversTheDecodedMessageAndMetadata(t *testing.T) {
-	var got *testproto.ApiKey
+	var got *testproto.Order
 	var seen map[string]string
-	sub := grpcmesh.NewSubscriber(testproto.ApiKeyTargets.Created, func(ctx context.Context, req *testproto.ApiKey) error {
+	sub := grpcmesh.NewSubscriber(testproto.OrderTargets.Placed, func(ctx context.Context, req *testproto.Order) error {
 		got, seen = req, grpcmesh.IncomingMetadata(ctx)
 		return nil
 	})
 
 	err := sub.Handler(context.Background(), mesh.Message{
 		Metadata: map[string]string{"Event-Id": "9"},
-		Payload:  mustMarshal(t, apiKey("made")),
+		Payload:  mustMarshal(t, order("made")),
 	})
 
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sub.Target.Equal(testproto.ApiKeyTargets.Created) {
+	if !sub.Target.Equal(testproto.OrderTargets.Placed) {
 		t.Errorf("subscriber target = %v", sub.Target)
 	}
-	if got.GetFirstName() != "made" {
+	if got.GetId() != "made" {
 		t.Errorf("handler received %v", got)
 	}
 	if seen["Event-Id"] != "9" {
@@ -188,7 +188,7 @@ func TestSubscriberDeliversTheDecodedMessageAndMetadata(t *testing.T) {
 
 func TestSubscriberReturnsTheHandlerErrorUnchanged(t *testing.T) {
 	failure := errors.New("cannot record")
-	sub := grpcmesh.NewSubscriber(testproto.ApiKeyTargets.Created, func(context.Context, *testproto.ApiKey) error {
+	sub := grpcmesh.NewSubscriber(testproto.OrderTargets.Placed, func(context.Context, *testproto.Order) error {
 		return failure
 	})
 
@@ -201,7 +201,7 @@ func TestSubscriberReturnsTheHandlerErrorUnchanged(t *testing.T) {
 
 func TestSubscriberReturnsTheDecodeErrorWithoutRunningTheHandler(t *testing.T) {
 	called := false
-	sub := grpcmesh.NewSubscriber(testproto.ApiKeyTargets.Created, func(context.Context, *testproto.ApiKey) error {
+	sub := grpcmesh.NewSubscriber(testproto.OrderTargets.Placed, func(context.Context, *testproto.Order) error {
 		called = true
 		return nil
 	})

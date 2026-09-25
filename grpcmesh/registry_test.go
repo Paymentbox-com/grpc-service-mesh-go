@@ -28,27 +28,27 @@ func topic(group string, segments ...string) mesh.Target {
 
 func TestRegisterAcceptsAGeneratedService(t *testing.T) {
 	registry := grpcmesh.NewRegistry()
-	svc := testproto.ApiKeyService{
-		Search:  func(context.Context, *testproto.ApiKey) (*testproto.ApiKey, error) { return nil, nil },
-		Created: func(context.Context, *testproto.ApiKey) error { return nil },
+	svc := testproto.OrderService{
+		Place:  func(context.Context, *testproto.Order) (*testproto.Order, error) { return nil, nil },
+		Placed: func(context.Context, *testproto.Order) error { return nil },
 	}
 
 	registry.Register(svc)
 
-	endpoints, subscribers := registry.Endpoints("testproto"), registry.Subscribers("testproto")
-	if len(endpoints) != 1 || !endpoints[0].Target.Equal(testproto.ApiKeyTargets.Search) {
-		t.Errorf("Endpoints = %v, want Search", endpoints)
+	endpoints, subscribers := registry.Endpoints("shop"), registry.Subscribers("shop")
+	if len(endpoints) != 1 || !endpoints[0].Target.Equal(testproto.OrderTargets.Place) {
+		t.Errorf("Endpoints = %v, want Place", endpoints)
 	}
-	if len(subscribers) != 1 || !subscribers[0].Target.Equal(testproto.ApiKeyTargets.Created) {
-		t.Errorf("Subscribers = %v, want Created", subscribers)
+	if len(subscribers) != 1 || !subscribers[0].Target.Equal(testproto.OrderTargets.Placed) {
+		t.Errorf("Subscribers = %v, want Placed", subscribers)
 	}
 }
 
 func TestRegistryFiltersBindingsByDeploymentGroup(t *testing.T) {
 	registry := grpcmesh.NewRegistry()
 	registry.Register(bindings{
-		endpoints:   []mesh.Endpoint{{Target: route("pbx", "pbx", "A", "Get")}, {Target: route("billing", "billing", "B", "Get")}},
-		subscribers: []mesh.Subscriber{{Target: topic("pbx", "pbx", "A", "Made")}, {Target: topic("billing", "billing", "B", "Made")}},
+		endpoints:   []mesh.Endpoint{{Target: route("shop", "shop", "A", "Get")}, {Target: route("billing", "billing", "B", "Get")}},
+		subscribers: []mesh.Subscriber{{Target: topic("shop", "shop", "A", "Made")}, {Target: topic("billing", "billing", "B", "Made")}},
 	})
 
 	endpoints, subscribers := registry.Endpoints("billing"), registry.Subscribers("billing")

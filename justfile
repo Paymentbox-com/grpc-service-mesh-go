@@ -39,10 +39,10 @@ proto-spec:
     git -c advice.detachedHead=false clone --quiet --depth 1 --branch {{spec_tag}} https://github.com/Paymentbox-com/grpc-service-mesh-api "$spec"
     mise exec -- protoc --proto_path="$spec" --go_out=. --go_opt=module=github.com/Paymentbox-com/grpc-service-mesh-go "$spec/mesh/options.proto"
 
-# Regenerate the test message code from internal/testproto/api_key.proto
+# Regenerate the test message code from internal/testproto/order.proto
 [group('build')]
 proto-test:
-    mise exec -- protoc --proto_path=internal/testproto --go_out=internal/testproto --go_opt=paths=source_relative internal/testproto/api_key.proto
+    mise exec -- protoc --proto_path=internal/testproto --go_out=internal/testproto --go_opt=paths=source_relative internal/testproto/order.proto
 
 # Run go vet
 [group('checks')]

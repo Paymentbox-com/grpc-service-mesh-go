@@ -157,23 +157,23 @@ func TestRPCRuntimeStopLeavesTheClientClosed(t *testing.T) {
 }
 
 func TestRPCRuntimeServesAGeneratedService(t *testing.T) {
-	var got *testproto.ApiKey
-	serveMem(t, testproto.ApiKeyService{
-		Search: func(_ context.Context, req *testproto.ApiKey) (*testproto.ApiKey, error) {
+	var got *testproto.Order
+	serveMem(t, testproto.OrderService{
+		Place: func(_ context.Context, req *testproto.Order) (*testproto.Order, error) {
 			got = req
-			return apiKey("reply"), nil
+			return order("reply"), nil
 		},
 	})
 
-	resp, err := testproto.ApiKeyClient.Search(context.Background(), apiKey("ask"))
+	resp, err := testproto.OrderClient.Place(context.Background(), order("ask"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if got.GetFirstName() != "ask" {
+	if got.GetId() != "ask" {
 		t.Errorf("handler received %v", got)
 	}
-	if resp.GetFirstName() != "reply" {
+	if resp.GetId() != "reply" {
 		t.Errorf("caller received %v", resp)
 	}
 }

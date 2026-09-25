@@ -13,7 +13,7 @@ import (
 
 var memConfig = mesh.Config{"url": "mem://hub"}
 
-var memServiceMap = mesh.ServiceMap{Targets: []mesh.Target{testproto.ApiKeyTargets.Search, testproto.ApiKeyTargets.Created}}
+var memServiceMap = mesh.ServiceMap{Targets: []mesh.Target{testproto.OrderTargets.Place, testproto.OrderTargets.Placed}}
 
 // freshSingletons installs an empty DefaultTransportRouter and
 // DefaultRegistry for the test and restores the previous ones afterwards.
@@ -51,7 +51,7 @@ func serveMem(t *testing.T, svc grpcmesh.RPCService) *memtransport.Hub {
 	hub := memtransport.NewHub()
 	grpcmesh.AddTransport("mem", memTransport(t, hub))
 	grpcmesh.Register(svc)
-	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
+	rt, err := grpcmesh.NewRPCRuntime("mem", "shop")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func serveRaw(t *testing.T, endpoints []mesh.Endpoint, subscribers []mesh.Subscr
 	freshSingletons(t)
 	hub := memtransport.NewHub()
 	grpcmesh.AddTransport("mem", memTransport(t, hub))
-	cfg := mesh.Config{mesh.DeploymentGroupKey: "testproto"}
+	cfg := mesh.Config{mesh.DeploymentGroupKey: "shop"}
 	c, err := hub.NewClient(cfg, memServiceMap)
 	if err != nil {
 		t.Fatal(err)
@@ -93,6 +93,6 @@ func mustMarshal(t *testing.T, m proto.Message) []byte {
 	return b
 }
 
-func apiKey(first string) *testproto.ApiKey {
-	return &testproto.ApiKey{FirstName: proto.String(first)}
+func order(id string) *testproto.Order {
+	return &testproto.Order{Id: proto.String(id)}
 }

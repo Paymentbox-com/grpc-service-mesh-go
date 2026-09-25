@@ -28,7 +28,7 @@ func TestNewMeshErrorCarriesCodeAndMessage(t *testing.T) {
 }
 
 func TestNewMeshErrorDetailsRoundTripThroughProto(t *testing.T) {
-	info := &errdetails.ErrorInfo{Reason: "EXPIRED", Domain: "pbx"}
+	info := &errdetails.ErrorInfo{Reason: "EXPIRED", Domain: "shop"}
 	me := grpcmesh.NewMeshError(code.Code_FAILED_PRECONDITION, "expired", info)
 
 	back := grpcmesh.MeshErrorFromProto(me.Proto())

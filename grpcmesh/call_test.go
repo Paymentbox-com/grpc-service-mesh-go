@@ -15,52 +15,52 @@ import (
 )
 
 func TestCallSendsTheEncodedRequestAndDecodesTheReply(t *testing.T) {
-	var got *testproto.ApiKey
-	hub := serveMem(t, testproto.ApiKeyService{
-		Search: func(_ context.Context, req *testproto.ApiKey) (*testproto.ApiKey, error) {
+	var got *testproto.Order
+	hub := serveMem(t, testproto.OrderService{
+		Place: func(_ context.Context, req *testproto.Order) (*testproto.Order, error) {
 			got = req
-			return apiKey("reply"), nil
+			return order("reply"), nil
 		},
 	})
 
-	resp, err := grpcmesh.Call[*testproto.ApiKey, *testproto.ApiKey](context.Background(), testproto.ApiKeyTargets.Search, apiKey("ask"))
+	resp, err := grpcmesh.Call[*testproto.Order, *testproto.Order](context.Background(), testproto.OrderTargets.Place, order("ask"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if got.GetFirstName() != "ask" {
+	if got.GetId() != "ask" {
 		t.Errorf("handler received %v", got)
 	}
-	if resp.GetFirstName() != "reply" {
+	if resp.GetId() != "reply" {
 		t.Errorf("Call returned %v", resp)
 	}
 	sent := hub.Runtimes()[0].Client().(*memtransport.Client).Requests()
 	if len(sent) != 1 {
 		t.Fatalf("Request ran %d times, want 1", len(sent))
 	}
-	if !sent[0].Message.Target.Equal(testproto.ApiKeyTargets.Search) {
+	if !sent[0].Message.Target.Equal(testproto.OrderTargets.Place) {
 		t.Errorf("sent to %v", sent[0].Message.Target)
 	}
 	if sent[0].Message.Metadata[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
 		t.Errorf("sent metadata = %v, want Content-Type", sent[0].Message.Metadata)
 	}
-	var wire testproto.ApiKey
+	var wire testproto.Order
 	if err := proto.Unmarshal(sent[0].Message.Payload, &wire); err != nil {
 		t.Fatal(err)
 	}
-	if wire.GetFirstName() != "ask" {
+	if wire.GetId() != "ask" {
 		t.Errorf("sent payload decodes to %v", &wire)
 	}
 }
 
 func TestCallSendsOutgoingMetadataAndTransportOptions(t *testing.T) {
-	hub := serveMem(t, testproto.ApiKeyService{
-		Search: func(context.Context, *testproto.ApiKey) (*testproto.ApiKey, error) { return &testproto.ApiKey{}, nil },
+	hub := serveMem(t, testproto.OrderService{
+		Place: func(context.Context, *testproto.Order) (*testproto.Order, error) { return &testproto.Order{}, nil },
 	})
 	ctx := grpcmesh.WithOutgoingMetadata(context.Background(), map[string]string{"Request-Id": "7", grpcmesh.ContentTypeKey: "text/plain"})
 	ctx = grpcmesh.WithTransportOptions(ctx, map[string]string{"request_timeout": "2s"})
 
-	if _, err := testproto.ApiKeyClient.Search(ctx, &testproto.ApiKey{}); err != nil {
+	if _, err := testproto.OrderClient.Place(ctx, &testproto.Order{}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -77,13 +77,13 @@ func TestCallSendsOutgoingMetadataAndTransportOptions(t *testing.T) {
 }
 
 func TestCallReturnsTheMeshErrorAReplyCarries(t *testing.T) {
-	serveMem(t, testproto.ApiKeyService{
-		Search: func(context.Context, *testproto.ApiKey) (*testproto.ApiKey, error) {
+	serveMem(t, testproto.OrderService{
+		Place: func(context.Context, *testproto.Order) (*testproto.Order, error) {
 			return nil, grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key", &errdetails.ErrorInfo{Reason: "GONE"})
 		},
 	})
 
-	resp, err := testproto.ApiKeyClient.Search(context.Background(), &testproto.ApiKey{})
+	resp, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
 
 	if resp != nil {
 		t.Errorf("resp = %v, want nil", resp)
@@ -102,11 +102,11 @@ func TestCallReturnsTheMeshErrorAReplyCarries(t *testing.T) {
 }
 
 func TestCallReturnsInternalForAnUndecodableResponse(t *testing.T) {
-	serveRaw(t, []mesh.Endpoint{{Target: testproto.ApiKeyTargets.Search, Handler: func(context.Context, mesh.Message) (mesh.Message, error) {
+	serveRaw(t, []mesh.Endpoint{{Target: testproto.OrderTargets.Place, Handler: func(context.Context, mesh.Message) (mesh.Message, error) {
 		return mesh.Message{Payload: garbage}, nil
 	}}}, nil)
 
-	_, err := testproto.ApiKeyClient.Search(context.Background(), &testproto.ApiKey{})
+	_, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
 
 	var me *grpcmesh.MeshError
 	if !errors.As(err, &me) {
@@ -118,11 +118,11 @@ func TestCallReturnsInternalForAnUndecodableResponse(t *testing.T) {
 }
 
 func TestCallReturnsInternalForAnUndecodableStatusPayload(t *testing.T) {
-	serveRaw(t, []mesh.Endpoint{{Target: testproto.ApiKeyTargets.Search, Handler: func(context.Context, mesh.Message) (mesh.Message, error) {
+	serveRaw(t, []mesh.Endpoint{{Target: testproto.OrderTargets.Place, Handler: func(context.Context, mesh.Message) (mesh.Message, error) {
 		return mesh.Message{Metadata: map[string]string{grpcmesh.GrpcStatusKey: "5"}, Payload: garbage}, nil
 	}}}, nil)
 
-	_, err := testproto.ApiKeyClient.Search(context.Background(), &testproto.ApiKey{})
+	_, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
 
 	var me *grpcmesh.MeshError
 	if !errors.As(err, &me) {
@@ -136,7 +136,7 @@ func TestCallReturnsInternalForAnUndecodableStatusPayload(t *testing.T) {
 func TestCallPassesTransportErrorsThrough(t *testing.T) {
 	serveRaw(t, nil, nil)
 
-	_, err := testproto.ApiKeyClient.Search(context.Background(), &testproto.ApiKey{})
+	_, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
 
 	if !errors.Is(err, memtransport.ErrNoReceiver) {
 		t.Errorf("err = %v, want the transport's error unchanged", err)
@@ -146,7 +146,7 @@ func TestCallPassesTransportErrorsThrough(t *testing.T) {
 func TestCallUnknownTransport(t *testing.T) {
 	freshSingletons(t)
 
-	_, err := testproto.ApiKeyClient.Search(context.Background(), &testproto.ApiKey{})
+	_, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
 
 	if !errors.Is(err, grpcmesh.ErrUnknownTransport) {
 		t.Errorf("err = %v, want ErrUnknownTransport", err)
@@ -154,27 +154,27 @@ func TestCallUnknownTransport(t *testing.T) {
 }
 
 func TestPublishSendsTheEncodedMessageToTheSubscriber(t *testing.T) {
-	var got *testproto.ApiKey
-	hub := serveMem(t, testproto.ApiKeyService{
-		Created: func(_ context.Context, req *testproto.ApiKey) error {
+	var got *testproto.Order
+	hub := serveMem(t, testproto.OrderService{
+		Placed: func(_ context.Context, req *testproto.Order) error {
 			got = req
 			return nil
 		},
 	})
 
-	err := testproto.ApiKeyClient.Created(context.Background(), apiKey("made"))
+	err := testproto.OrderClient.Placed(context.Background(), order("made"))
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if got.GetFirstName() != "made" {
+	if got.GetId() != "made" {
 		t.Errorf("subscriber received %v", got)
 	}
 	sent := hub.Runtimes()[0].Client().(*memtransport.Client).Publishes()
 	if len(sent) != 1 {
 		t.Fatalf("Publish ran %d times, want 1", len(sent))
 	}
-	if !sent[0].Message.Target.Equal(testproto.ApiKeyTargets.Created) {
+	if !sent[0].Message.Target.Equal(testproto.OrderTargets.Placed) {
 		t.Errorf("sent to %v", sent[0].Message.Target)
 	}
 	if sent[0].Message.Metadata[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
@@ -185,7 +185,7 @@ func TestPublishSendsTheEncodedMessageToTheSubscriber(t *testing.T) {
 func TestPublishPassesKindMismatchThrough(t *testing.T) {
 	serveRaw(t, nil, nil)
 
-	err := grpcmesh.Publish(context.Background(), testproto.ApiKeyTargets.Search, &testproto.ApiKey{})
+	err := grpcmesh.Publish(context.Background(), testproto.OrderTargets.Place, &testproto.Order{})
 
 	if !errors.Is(err, mesh.ErrKindMismatch) {
 		t.Errorf("err = %v, want mesh.ErrKindMismatch unchanged", err)
