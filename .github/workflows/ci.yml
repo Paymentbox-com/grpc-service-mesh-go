@@ -9,6 +9,9 @@ on:
 permissions:
   contents: read
 
+env:
+  PROTOC_VERSION: "36.1"
+
 jobs:
   check:
     runs-on: ubuntu-latest
@@ -17,6 +20,24 @@ jobs:
 
       - name: Install toolchain from mise.toml
         uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+
+      - name: Install protoc
+        run: |
+          name="protoc-${PROTOC_VERSION}-linux-x86_64"
+          curl -fsSL "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${name}.zip" -o protoc.zip
+          sudo unzip -q -o protoc.zip -d /usr/local
+          sudo chmod -R a+rX /usr/local/include/google
+          rm protoc.zip
+          protoc --version
+
+      # The version in go.mod, so the generated files' version headers match.
+      - name: Install protoc-gen-go
+        run: go install google.golang.org/protobuf/cmd/protoc-gen-go
+
+      - name: Compiled protos match the specification tag
+        run: |
+          just proto
+          git diff --exit-code
 
       - name: Format check
         run: |

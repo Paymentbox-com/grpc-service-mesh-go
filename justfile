@@ -20,24 +20,24 @@ build:
 test:
     {{go}} test -race ./...
 
-# A checkout of grpc-service-mesh-api, the specification whose .proto files
-# `just proto` copies into proto/. Override with `just spec=<dir> proto`.
-spec := "../grpc-service-mesh-api"
+# The grpc-service-mesh-api tag whose mesh/options.proto meshoptions is compiled from
+spec_tag := "v0.4.0"
 
-# The specification's .proto files, as paths under both {{spec}} and proto/
-spec_protos := "mesh/options.proto google/rpc/code.proto google/rpc/status.proto google/rpc/error_details.proto"
-
-# Copy the specification's .proto files into proto/, regenerate
-# meshoptions/options.pb.go from them, and regenerate the test message code.
-# protoc is found on PATH; protoc-gen-go comes from the pinned Go toolchain.
+# Regenerate meshoptions/options.pb.go from the specification at {{spec_tag}}
+# and regenerate the test message code. protoc is found on PATH;
+# protoc-gen-go comes from the pinned Go toolchain.
 [group('build')]
 proto: proto-spec proto-test
 
-# Copy the specification's .proto files into proto/ and regenerate meshoptions/options.pb.go
+# Compile mesh/options.proto from a shallow clone of grpc-service-mesh-api at {{spec_tag}} into meshoptions/options.pb.go
 [group('build')]
 proto-spec:
-    for f in {{spec_protos}}; do mkdir -p "proto/$(dirname "$f")" && cp "{{spec}}/$f" "proto/$f"; done
-    mise exec -- protoc --proto_path=proto --go_out=. --go_opt=module=github.com/Paymentbox-com/grpc-service-mesh-go proto/mesh/options.proto
+    #!/usr/bin/env bash
+    set -euo pipefail
+    spec="$(mktemp -d)"
+    trap 'rm -rf "$spec"' EXIT
+    git -c advice.detachedHead=false clone --quiet --depth 1 --branch {{spec_tag}} https://github.com/Paymentbox-com/grpc-service-mesh-api "$spec"
+    mise exec -- protoc --proto_path="$spec" --go_out=. --go_opt=module=github.com/Paymentbox-com/grpc-service-mesh-go "$spec/mesh/options.proto"
 
 # Regenerate the test message code from internal/testproto/api_key.proto
 [group('build')]
