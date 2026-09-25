@@ -246,9 +246,12 @@ a reply never claims details it does not carry.
 The generator is `grpc-service-mesh-gen` from the specification repository:
 
 ```sh
-go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.2.0
-grpc-service-mesh-gen --definitions definitions --out lib --lang go,ruby
+go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.3.0
+grpc-service-mesh-gen --definitions definitions -I "$(go list -m -f '{{.Dir}}' github.com/Paymentbox-com/grpc-service-mesh-go)/proto" --out lib --lang go,ruby
 ```
+
+`-I` names this module's `proto/` directory, which holds the specification's
+protos at the version `meshoptions` was compiled from.
 
 For each service it emits a targets value, an
 `RPCService` struct, and a client. This is the reference output for the
