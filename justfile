@@ -20,10 +20,28 @@ build:
 test:
     {{go}} test -race ./...
 
-# Regenerate the test message code from internal/testproto/api_key.proto.
+# A checkout of grpc-service-mesh-api, the specification whose .proto files
+# `just proto` copies into proto/. Override with `just spec=<dir> proto`.
+spec := "../grpc-service-mesh-api"
+
+# The specification's .proto files, as paths under both {{spec}} and proto/
+spec_protos := "mesh/options.proto google/rpc/code.proto google/rpc/status.proto google/rpc/error_details.proto"
+
+# Copy the specification's .proto files into proto/, regenerate
+# meshoptions/options.pb.go from them, and regenerate the test message code.
 # protoc is found on PATH; protoc-gen-go comes from the pinned Go toolchain.
 [group('build')]
-proto:
+proto: proto-spec proto-test
+
+# Copy the specification's .proto files into proto/ and regenerate meshoptions/options.pb.go
+[group('build')]
+proto-spec:
+    for f in {{spec_protos}}; do mkdir -p "proto/$(dirname "$f")" && cp "{{spec}}/$f" "proto/$f"; done
+    mise exec -- protoc --proto_path=proto --go_out=. --go_opt=module=github.com/Paymentbox-com/grpc-service-mesh-go proto/mesh/options.proto
+
+# Regenerate the test message code from internal/testproto/api_key.proto
+[group('build')]
+proto-test:
     mise exec -- protoc --proto_path=internal/testproto --go_out=internal/testproto --go_opt=paths=source_relative internal/testproto/api_key.proto
 
 # Run go vet

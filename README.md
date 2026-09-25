@@ -246,7 +246,7 @@ a reply never claims details it does not carry.
 The generator is `grpc-service-mesh-gen` from the specification repository:
 
 ```sh
-go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.1.0
+go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.2.0
 grpc-service-mesh-gen --definitions definitions --out lib --lang go,ruby
 ```
 
@@ -345,6 +345,37 @@ The per-transport `ServiceMap`s are emitted into `servicemaps/servicemaps.go`
 at the output root, one `mesh.ServiceMap` variable per transport named by
 PascalCasing the transport string, such as `servicemaps.Nats`.
 
+## Specification protos
+
+The module ships the specification's `.proto` files and the compiled Go form
+of its options file.
+
+- `proto/` holds byte copies of the specification's `mesh/options.proto` and
+  `google/rpc/{code,status,error_details}.proto` at their import paths.
+- `meshoptions/` is package `meshoptions`, the `protoc-gen-go` output of
+  `mesh/options.proto`, whose `go_package` names it. It registers the
+  extensions `mesh.kind`, `mesh.consumer_group`, `mesh.deployment_group`, and
+  `mesh.transport`.
+
+The compiled forms of `google/rpc/*.proto` are the published ones in
+`google.golang.org/genproto/googleapis/rpc`.
+
+Every message file `protoc-gen-go` writes from a definitions file that
+imports `mesh/options.proto` imports `meshoptions`, so a definitions
+project's Go module requires this module. Plain `protoc` finds the
+specification's files through this module's `proto/` directory:
+
+```sh
+protoc \
+  -I definitions \
+  -I "$(go list -m -f '{{.Dir}}' github.com/Paymentbox-com/grpc-service-mesh-go)/proto" \
+  --go_out=lib/go --go_opt=paths=source_relative \
+  $(find definitions -name '*.proto')
+```
+
+Only files under `definitions/` are listed. The specification's files are
+only on the include path.
+
 ## Development
 
 Tool versions are pinned in `mise.toml` and installed with `mise install`.
@@ -354,7 +385,9 @@ Tool versions are pinned in `mise.toml` and installed with `mise install`.
 |---------------|---------------------------------------------------------------------------|
 | `just build`  | compile everything                                                        |
 | `just test`   | run the suite with the race detector                                      |
-| `just proto`  | regenerate `internal/testproto/api_key.pb.go` with `protoc` and `protoc-gen-go` |
+| `just proto`  | run `just proto-spec` and `just proto-test`                                 |
+| `just proto-spec` | copy the specification's `.proto` files into `proto/` and regenerate `meshoptions/options.pb.go` |
+| `just proto-test` | regenerate `internal/testproto/api_key.pb.go` with `protoc` and `protoc-gen-go` |
 | `just check`  | format check, vet, test, vulnerability scan, lint; what CI runs           |
 
 The tests run against `internal/memtransport`, an in-process transport
@@ -363,3 +396,32 @@ them. They deliver to each other and record what they were built with and
 what they sent. Nothing
 in this repository needs a broker. Tests that need a transport live outside
 it.
+
+### Updating the compiled specification protos
+
+`proto/` and `meshoptions/` are copies and compiled forms of the files in the
+specification repository,
+[grpc-service-mesh-api](https://github.com/Paymentbox-com/grpc-service-mesh-api).
+They are never edited here. `just proto-spec` copies the files from a
+checkout of that repository, `../grpc-service-mesh-api` by default and set
+with `just spec=<dir> proto`, and regenerates `meshoptions/options.pb.go`
+with `protoc` and `protoc-gen-go`.
+
+When the specification changes its `.proto` files:
+
+1. Update the checkout of grpc-service-mesh-api to the specification commit
+   or tag being adopted.
+2. Run `just proto`.
+3. Review the diff under `proto/` and `meshoptions/`.
+4. Run `just check`.
+5. Bump the version, commit, and tag.
+
+When the specification adds a `.proto` file, its import path goes into the
+`spec_protos` list in the `justfile`. A file that defines options or messages
+this module compiles also gets its own `protoc` line in `proto-spec`, with
+its `go_package` under this module.
+
+The extension numbers in `mesh/options.proto` are part of every definitions
+project's compiled descriptors. A change to an extension number is a breaking
+change for every definitions project.
+
