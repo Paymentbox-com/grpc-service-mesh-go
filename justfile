@@ -21,7 +21,7 @@ test:
     {{go}} test -race ./...
 
 # The grpc-service-mesh-api tag whose mesh/options.proto meshoptions is compiled from
-spec_tag := "v0.4.0"
+spec_tag := "v0.6.0"
 
 # Regenerate meshoptions/options.pb.go from the specification at {{spec_tag}}
 # and regenerate the test message code. protoc is found on PATH;

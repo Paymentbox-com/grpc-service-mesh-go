@@ -105,6 +105,14 @@ var file_mesh_options_proto_extTypes = []protoimpl.ExtensionInfo{
 		Tag:           "bytes,50004,opt,name=transport",
 		Filename:      "mesh/options.proto",
 	},
+	{
+		ExtendedType:  (*descriptorpb.FileOptions)(nil),
+		ExtensionType: (*string)(nil),
+		Field:         50005,
+		Name:          "mesh.root_prefix",
+		Tag:           "bytes,50005,opt,name=root_prefix",
+		Filename:      "mesh/options.proto",
+	},
 }
 
 // Extension fields to descriptorpb.MethodOptions.
@@ -132,6 +140,10 @@ var (
 	//
 	// optional string transport = 50004;
 	E_Transport = &file_mesh_options_proto_extTypes[3]
+	// Prefixes every name the file's directory adds to a root package or module.
+	//
+	// optional string root_prefix = 50005;
+	E_RootPrefix = &file_mesh_options_proto_extTypes[4]
 )
 
 var File_mesh_options_proto protoreflect.FileDescriptor
@@ -146,7 +158,9 @@ const file_mesh_options_proto_rawDesc = "" +
 	".mesh.KindR\x04kind:G\n" +
 	"\x0econsumer_group\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\tR\rconsumerGroup:I\n" +
 	"\x10deployment_group\x12\x1c.google.protobuf.FileOptions\x18ӆ\x03 \x01(\tR\x0fdeploymentGroup:<\n" +
-	"\ttransport\x12\x1c.google.protobuf.FileOptions\x18Ԇ\x03 \x01(\tR\ttransportB<Z:github.com/Paymentbox-com/grpc-service-mesh-go/meshoptionsb\x06proto3"
+	"\ttransport\x12\x1c.google.protobuf.FileOptions\x18Ԇ\x03 \x01(\tR\ttransport:?\n" +
+	"\vroot_prefix\x12\x1c.google.protobuf.FileOptions\x18Ն\x03 \x01(\tR\n" +
+	"rootPrefixB<Z:github.com/Paymentbox-com/grpc-service-mesh-go/meshoptionsb\x06proto3"
 
 var (
 	file_mesh_options_proto_rawDescOnce sync.Once
@@ -171,11 +185,12 @@ var file_mesh_options_proto_depIdxs = []int32{
 	1, // 1: mesh.consumer_group:extendee -> google.protobuf.MethodOptions
 	2, // 2: mesh.deployment_group:extendee -> google.protobuf.FileOptions
 	2, // 3: mesh.transport:extendee -> google.protobuf.FileOptions
-	0, // 4: mesh.kind:type_name -> mesh.Kind
-	5, // [5:5] is the sub-list for method output_type
-	5, // [5:5] is the sub-list for method input_type
-	4, // [4:5] is the sub-list for extension type_name
-	0, // [0:4] is the sub-list for extension extendee
+	2, // 4: mesh.root_prefix:extendee -> google.protobuf.FileOptions
+	0, // 5: mesh.kind:type_name -> mesh.Kind
+	6, // [6:6] is the sub-list for method output_type
+	6, // [6:6] is the sub-list for method input_type
+	5, // [5:6] is the sub-list for extension type_name
+	0, // [0:5] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
 
@@ -191,7 +206,7 @@ func file_mesh_options_proto_init() {
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mesh_options_proto_rawDesc), len(file_mesh_options_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   0,
-			NumExtensions: 4,
+			NumExtensions: 5,
 			NumServices:   0,
 		},
 		GoTypes:           file_mesh_options_proto_goTypes,
