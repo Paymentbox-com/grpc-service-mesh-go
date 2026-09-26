@@ -22,34 +22,9 @@ func TestRouterClientUnknownTransport(t *testing.T) {
 	}
 }
 
-func TestRouterGetUnknownTransport(t *testing.T) {
-	router := grpcmesh.NewTransportRouter()
-
-	_, err := router.Get("http")
-
-	if !errors.Is(err, grpcmesh.ErrUnknownTransport) {
-		t.Fatalf("err = %v, want ErrUnknownTransport", err)
-	}
-}
-
-func TestRouterGetReturnsTheEntry(t *testing.T) {
-	router := grpcmesh.NewTransportRouter()
-	added := memTransport(t, memtransport.NewHub())
-	router.AddTransport("mem", added)
-
-	entry, err := router.Get("mem")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if entry.Client != added.Client || entry.Config["url"] != memConfig["url"] {
-		t.Errorf("Get returned %+v", entry)
-	}
-}
-
 func TestRouterClientReturnsTheClientAdded(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
-	added := memTransport(t, memtransport.NewHub())
+	added := memClient(t, memtransport.NewHub())
 	router.AddTransport("mem", added)
 
 	c, err := router.Client("mem")
@@ -57,7 +32,39 @@ func TestRouterClientReturnsTheClientAdded(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if c != added.Client {
+	if c != added {
+		t.Errorf("Client returned %v, want the client added", c)
+	}
+}
+
+func TestRouterAddTransportUnderAPresentNameReplacesTheClient(t *testing.T) {
+	router := grpcmesh.NewTransportRouter()
+	hub := memtransport.NewHub()
+	router.AddTransport("mem", memClient(t, hub))
+	second := memClient(t, hub)
+	router.AddTransport("mem", second)
+
+	c, err := router.Client("mem")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if c != second {
+		t.Errorf("Client returned %v, want the client added last", c)
+	}
+}
+
+func TestAddTransportAddsToTheDefaultRouter(t *testing.T) {
+	freshSingletons(t)
+	added := memClient(t, memtransport.NewHub())
+	grpcmesh.AddTransport("mem", added)
+
+	c, err := grpcmesh.DefaultTransportRouter.Client("mem")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if c != added {
 		t.Errorf("Client returned %v, want the client added", c)
 	}
 }
@@ -65,19 +72,19 @@ func TestRouterClientReturnsTheClientAdded(t *testing.T) {
 func TestRouterCloseClosesEveryClientAndJoinsTheirErrors(t *testing.T) {
 	router := grpcmesh.NewTransportRouter()
 	hub := memtransport.NewHub()
-	mem := memTransport(t, hub)
-	mem.Client.(*memtransport.Client).CloseErr = errors.New("mem flush failed")
-	other := memTransport(t, hub)
-	other.Client.(*memtransport.Client).CloseErr = errors.New("other flush failed")
+	mem := memClient(t, hub)
+	mem.CloseErr = errors.New("mem flush failed")
+	other := memClient(t, hub)
+	other.CloseErr = errors.New("other flush failed")
 	router.AddTransport("mem", mem)
 	router.AddTransport("other", other)
 
 	err := router.Close()
 
-	if !mem.Client.(*memtransport.Client).Closed() || !other.Client.(*memtransport.Client).Closed() {
+	if !mem.Closed() || !other.Closed() {
 		t.Error("an added client is still open")
 	}
-	if !errors.Is(err, mem.Client.(*memtransport.Client).CloseErr) || !errors.Is(err, other.Client.(*memtransport.Client).CloseErr) {
+	if !errors.Is(err, mem.CloseErr) || !errors.Is(err, other.CloseErr) {
 		t.Errorf("err = %v, want both clients' close errors", err)
 	}
 	if !strings.Contains(err.Error(), "mem:") || !strings.Contains(err.Error(), "other:") {

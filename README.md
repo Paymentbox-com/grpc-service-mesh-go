@@ -35,12 +35,12 @@ the generated per-transport maps are in `servicemaps`.
 
 ### Configuring the TransportRouter at boot
 
-`grpcmesh.DefaultTransportRouter` is the process-wide router. The
-application builds one transport `Client` per transport name its definitions
-use, with the transport's configuration and the generated `ServiceMap` for
-that transport, and adds a `Transport` entry holding that client, the
-configuration, and the constructor of the transport's `Runtime`. The
-transport package is a dependency of the application, not of this library.
+`grpcmesh.DefaultTransportRouter` is the process-wide router. It holds one
+`mesh.Client` per transport name. The application builds one transport
+`Client` per transport name its definitions use, with the transport's
+configuration and the generated `ServiceMap` for that transport, and adds it
+under that name. The transport package is a dependency of the application,
+not of this library.
 
 ```go
 import (
@@ -51,34 +51,23 @@ import (
     "example.com/definitions/servicemaps"
 )
 
-cfg := mesh.Config{nats.URLKey: os.Getenv("NATS_URL")}
-c, err := nats.NewClient(cfg, servicemaps.Nats)
+client, err := nats.NewClient(mesh.Config{nats.URLKey: os.Getenv("NATS_URL")}, servicemaps.Nats)
 if err != nil { /* the transport's error */ }
-
-grpcmesh.AddTransport("nats", grpcmesh.Transport{
-    Client: c,
-    Config: cfg,
-    NewRuntime: func(c mesh.Client, cfg mesh.Config, e []mesh.Endpoint, s []mesh.Subscriber) (mesh.Runtime, error) {
-        return nats.New(c.(*nats.Client), cfg, e, s)
-    },
-})
+grpcmesh.AddTransport("nats", client)
 ```
-
-`nats.New` takes a `*nats.Client`, so the `NewRuntime` wrapper asserts the
-`mesh.Client` the router passes back, which is the one the entry holds.
 
 `router.Client(name)` returns the client the application added under
 `name`, the one every generated client method sends through. A process that
 only calls builds its clients, adds them, and runs `router.Close()` before
-exit, which closes every entry's client and joins their errors, so the
-transport flushes what it has buffered. The entries stay after `Close`, and a
-`Client` call after it returns the closed client. An `RPCRuntime` for a
-transport is built from the entry's client, and its `Stop` closes that client
-as well.
+exit, which closes every client and joins their errors, so the transport
+flushes what it has buffered. The clients stay after `Close`, and a `Client`
+call after it returns the closed client. An `RPCRuntime` for a transport is
+built on the router's client for that transport, and its `Stop` closes that
+client as well.
 
-`AddTransport` under a name already present replaces the entry. A transport
-that was not added yields `ErrUnknownTransport`, wrapped with the name, from `Client`, `Get`,
-`NewRPCRuntime`, `Call`, and `Publish`.
+`AddTransport` under a name already present replaces the client. A transport
+that was not added yields `ErrUnknownTransport`, wrapped with the name, from
+`Client`, `NewRPCRuntime`, `Call`, and `Publish`.
 
 ### Registering a service
 
@@ -105,19 +94,23 @@ the transport two bindings for it.
 
 ### Constructing and starting an RPCRuntime
 
-`NewRPCRuntime(transport, deploymentGroup)` takes from `DefaultRegistry` the
-Endpoints and Subscribers whose Targets carry `deploymentGroup`, takes the
-`Transport` entry from `DefaultTransportRouter`, and calls the entry's
-`NewRuntime` with the entry's `Client`, the entry's `Config` plus
-`deployment_group` set to `deploymentGroup`, and those bindings. The
-transport's runtime is built in the constructor, so `Underlying()` is set
+`NewRPCRuntime(transport, deploymentGroup, cfg, newRuntime)` takes the
+transport's `Client` from `DefaultTransportRouter` and the Endpoints and
+Subscribers whose Targets carry `deploymentGroup` from `DefaultRegistry`,
+copies `cfg` with `deployment_group` set to `deploymentGroup`, and calls
+`newRuntime`, a `NewRuntimeFunc`, with them. `NewRuntimeFunc` is
+`func(mesh.Client, mesh.Config, []mesh.Endpoint, []mesh.Subscriber) (mesh.Runtime, error)`.
+The transport's runtime is built in the constructor, so `Underlying()` is set
 before `Start`. `Start`, `Stop`, and `Running` only delegate. The value passed
-to `NewRPCRuntime` is the deployment group, so a `deployment_group` key in the
-entry's `Config` is overwritten. Services registered after the constructor
-has run are not served.
+as `deploymentGroup` is the deployment group, so a `deployment_group` key in
+`cfg` is overwritten, and `cfg` itself is left unchanged. Services registered
+after the constructor has run are not served.
 
 ```go
-rt, err := grpcmesh.NewRPCRuntime("nats", "shop")
+rt, err := grpcmesh.NewRPCRuntime("nats", "shop", mesh.Config{},
+    func(c mesh.Client, cfg mesh.Config, e []mesh.Endpoint, s []mesh.Subscriber) (mesh.Runtime, error) {
+        return nats.New(c.(*nats.Client), cfg, e, s)
+    })
 if err != nil { /* ErrUnknownTransport or the transport constructor's error */ }
 if err := rt.Start(ctx); err != nil { /* the transport's error */ }
 
@@ -130,9 +123,12 @@ defer cancel()
 _ = rt.Stop(drain)
 ```
 
+`nats.New` takes a `*nats.Client`, so the function asserts the `mesh.Client`
+the router passes to it, which is the one added under `nats`.
+
 `RPCRuntime` implements `mesh.Runtime`. `Start`, `Stop`, `Running`, and
 `Client` go to the transport's runtime, which `Underlying()` returns, so
-`Client()` is the entry's client and `Stop` closes it after the drain.
+`Client()` is the router's client for the transport and `Stop` closes it after the drain.
 `Transport()` and `DeploymentGroup()` return what the runtime was built for.
 
 ### Handlers

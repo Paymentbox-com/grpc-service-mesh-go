@@ -11,29 +11,29 @@ import (
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
 )
 
-func TestNewRPCRuntimeHandsTheTransportItsBindingsAndConfig(t *testing.T) {
+func TestNewRPCRuntimePassesTheGroupsBindingsAndConfigToNewRuntime(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(t, hub))
+	grpcmesh.AddTransport("mem", memClient(t, hub))
 	grpcmesh.Register(bindings{
 		endpoints:   []mesh.Endpoint{{Target: route("testproto", "testproto", "A", "Get")}, {Target: route("other", "other", "B", "Get")}},
 		subscribers: []mesh.Subscriber{{Target: topic("testproto", "testproto", "A", "Made")}, {Target: topic("other", "other", "B", "Made")}},
 	})
 
-	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
+	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto", memConfig, hub.NewRuntime)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	built := hub.Runtimes()
 	if len(built) != 1 {
-		t.Fatalf("NewRuntime ran %d times, want 1", len(built))
+		t.Fatalf("newRuntime ran %d times, want 1", len(built))
 	}
 	if rt.Underlying() != built[0] {
-		t.Error("Underlying() is not the runtime the transport built")
+		t.Error("Underlying() is not the runtime newRuntime built")
 	}
 	if built[0].Config[mesh.DeploymentGroupKey] != "testproto" || built[0].Config["url"] != memConfig["url"] {
-		t.Errorf("runtime config = %v, want the entry config plus deployment_group", built[0].Config)
+		t.Errorf("runtime config = %v, want the given config plus deployment_group", built[0].Config)
 	}
 	if len(built[0].Endpoints) != 1 || built[0].Endpoints[0].Target.Segments[0] != "testproto" {
 		t.Errorf("runtime endpoints = %v, want only the testproto one", built[0].Endpoints)
@@ -46,72 +46,75 @@ func TestNewRPCRuntimeHandsTheTransportItsBindingsAndConfig(t *testing.T) {
 	}
 }
 
-func TestNewRPCRuntimeHandsTheTransportTheEntryClient(t *testing.T) {
+func TestNewRPCRuntimePassesTheRoutersClientToNewRuntime(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	entry := memTransport(t, hub)
-	grpcmesh.AddTransport("mem", entry)
+	added := memClient(t, hub)
+	grpcmesh.AddTransport("mem", added)
 
-	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
+	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto", memConfig, hub.NewRuntime)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if hub.Runtimes()[0].Client() != entry.Client {
-		t.Error("NewRuntime received a client other than the entry's")
+	if hub.Runtimes()[0].Client() != added {
+		t.Error("newRuntime received a client other than the router's")
 	}
-	if rt.Client() != entry.Client {
-		t.Error("Client() is not the entry's client")
+	if rt.Client() != added {
+		t.Error("Client() is not the router's client")
 	}
 }
 
-func TestNewRPCRuntimeDeploymentGroupOverridesTheEntryConfig(t *testing.T) {
+func TestNewRPCRuntimeDeploymentGroupOverridesTheGivenConfig(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	entry := memTransport(t, hub)
-	entry.Config = mesh.Config{mesh.DeploymentGroupKey: "configured"}
-	grpcmesh.AddTransport("mem", entry)
+	grpcmesh.AddTransport("mem", memClient(t, hub))
+	cfg := mesh.Config{mesh.DeploymentGroupKey: "configured"}
 
-	if _, err := grpcmesh.NewRPCRuntime("mem", "testproto"); err != nil {
+	if _, err := grpcmesh.NewRPCRuntime("mem", "testproto", cfg, hub.NewRuntime); err != nil {
 		t.Fatal(err)
 	}
 
 	if got := hub.Runtimes()[0].Config[mesh.DeploymentGroupKey]; got != "testproto" {
 		t.Errorf("deployment_group = %q, want testproto", got)
 	}
-	if entry.Config[mesh.DeploymentGroupKey] != "configured" {
-		t.Error("the entry's config was mutated")
+	if cfg[mesh.DeploymentGroupKey] != "configured" {
+		t.Error("the given config was mutated")
 	}
 }
 
 func TestNewRPCRuntimeUnknownTransport(t *testing.T) {
 	freshSingletons(t)
+	hub := memtransport.NewHub()
 
-	_, err := grpcmesh.NewRPCRuntime("mem", "testproto")
+	_, err := grpcmesh.NewRPCRuntime("mem", "testproto", memConfig, hub.NewRuntime)
 
 	if !errors.Is(err, grpcmesh.ErrUnknownTransport) {
 		t.Errorf("err = %v, want ErrUnknownTransport", err)
 	}
+	if len(hub.Runtimes()) != 0 {
+		t.Error("newRuntime ran for an unknown transport")
+	}
 }
 
-func TestNewRPCRuntimePropagatesTheTransportConstructorError(t *testing.T) {
+func TestNewRPCRuntimePassesTheNewRuntimeErrorThrough(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(t, hub))
+	grpcmesh.AddTransport("mem", memClient(t, hub))
 	hub.Fail = errors.New("bad url")
 
-	_, err := grpcmesh.NewRPCRuntime("mem", "testproto")
+	_, err := grpcmesh.NewRPCRuntime("mem", "testproto", memConfig, hub.NewRuntime)
 
-	if !errors.Is(err, hub.Fail) {
-		t.Errorf("err = %v, want the constructor's error", err)
+	if err != hub.Fail {
+		t.Errorf("err = %v, want newRuntime's error unchanged", err)
 	}
 }
 
 func TestRPCRuntimeDelegatesTheLifecycle(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	grpcmesh.AddTransport("mem", memTransport(t, hub))
-	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
+	grpcmesh.AddTransport("mem", memClient(t, hub))
+	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto", memConfig, hub.NewRuntime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,9 +140,9 @@ func TestRPCRuntimeDelegatesTheLifecycle(t *testing.T) {
 func TestRPCRuntimeStopLeavesTheClientClosed(t *testing.T) {
 	freshSingletons(t)
 	hub := memtransport.NewHub()
-	entry := memTransport(t, hub)
-	grpcmesh.AddTransport("mem", entry)
-	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto")
+	added := memClient(t, hub)
+	grpcmesh.AddTransport("mem", added)
+	rt, err := grpcmesh.NewRPCRuntime("mem", "testproto", memConfig, hub.NewRuntime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,8 +154,8 @@ func TestRPCRuntimeStopLeavesTheClientClosed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !entry.Client.(*memtransport.Client).Closed() {
-		t.Error("the entry's client is open after Stop")
+	if !added.Closed() {
+		t.Error("the router's client is open after Stop")
 	}
 }
 

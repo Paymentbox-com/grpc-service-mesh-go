@@ -17,30 +17,34 @@ type RPCRuntime struct {
 
 var _ mesh.Runtime = (*RPCRuntime)(nil)
 
-// NewRPCRuntime builds the runtime for transport and deploymentGroup from the
-// process singletons. It takes the Endpoints and Subscribers registered in
-// DefaultRegistry whose Targets carry deploymentGroup, takes the Transport
-// entry from DefaultTransportRouter, and calls the entry's NewRuntime with
-// the entry's Client, the entry's Config plus deployment_group set to
-// deploymentGroup, and those bindings. The runtime is built here, so
-// Underlying is set from this point; Start, Stop, and Running only delegate.
-// Services registered afterwards are not served. Errors are
-// ErrUnknownTransport or the transport constructor's own.
-func NewRPCRuntime(transport, deploymentGroup string) (*RPCRuntime, error) {
-	return newRPCRuntime(DefaultTransportRouter, DefaultRegistry, transport, deploymentGroup)
+// NewRuntimeFunc builds a transport's mesh.Runtime from the transport's
+// Client, the Config with deployment_group set, and the Endpoints and
+// Subscribers of one deployment group.
+type NewRuntimeFunc func(mesh.Client, mesh.Config, []mesh.Endpoint, []mesh.Subscriber) (mesh.Runtime, error)
+
+// NewRPCRuntime builds the runtime for transport and deploymentGroup. It
+// takes the transport's Client from DefaultTransportRouter and the Endpoints
+// and Subscribers registered in DefaultRegistry whose Targets carry
+// deploymentGroup, copies cfg with deployment_group set to deploymentGroup,
+// and calls newRuntime with them. The runtime is built here, so Underlying is
+// set from this point; Start, Stop, and Running only delegate. Services
+// registered afterwards are not served. Errors are ErrUnknownTransport or
+// newRuntime's own.
+func NewRPCRuntime(transport, deploymentGroup string, cfg mesh.Config, newRuntime NewRuntimeFunc) (*RPCRuntime, error) {
+	return newRPCRuntime(DefaultTransportRouter, DefaultRegistry, transport, deploymentGroup, cfg, newRuntime)
 }
 
-func newRPCRuntime(router *TransportRouter, registry *Registry, transport, group string) (*RPCRuntime, error) {
-	t, err := router.Get(transport)
+func newRPCRuntime(router *TransportRouter, registry *Registry, transport, group string, cfg mesh.Config, newRuntime NewRuntimeFunc) (*RPCRuntime, error) {
+	client, err := router.Client(transport)
 	if err != nil {
 		return nil, err
 	}
 
-	cfg := make(mesh.Config, len(t.Config)+1)
-	maps.Copy(cfg, t.Config)
-	cfg[mesh.DeploymentGroupKey] = group
+	runtimeCfg := make(mesh.Config, len(cfg)+1)
+	maps.Copy(runtimeCfg, cfg)
+	runtimeCfg[mesh.DeploymentGroupKey] = group
 
-	rt, err := t.NewRuntime(t.Client, cfg, registry.Endpoints(group), registry.Subscribers(group))
+	rt, err := newRuntime(client, runtimeCfg, registry.Endpoints(group), registry.Subscribers(group))
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +66,7 @@ func (r *RPCRuntime) DeploymentGroup() string {
 	return r.group
 }
 
-// Client returns the underlying runtime's client, the one the entry holds.
+// Client returns the underlying runtime's client, the one the router holds.
 func (r *RPCRuntime) Client() mesh.Client {
 	return r.underlying.Client()
 }
