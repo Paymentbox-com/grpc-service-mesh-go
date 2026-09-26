@@ -180,3 +180,15 @@ func TestRPCRuntimeServesAGeneratedService(t *testing.T) {
 		t.Errorf("caller received %v", resp)
 	}
 }
+
+func TestNewRPCRuntimeWithoutARuntimeConstructor(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	grpcmesh.AddTransport("mem", memClient(t, hub))
+
+	_, err := grpcmesh.NewRPCRuntime("mem", "testproto", memConfig, nil)
+
+	if !errors.Is(err, grpcmesh.ErrNoRuntimeConstructor) {
+		t.Errorf("err = %v, want ErrNoRuntimeConstructor", err)
+	}
+}

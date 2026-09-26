@@ -111,7 +111,7 @@ rt, err := grpcmesh.NewRPCRuntime("nats", "shop", mesh.Config{},
     func(c mesh.Client, cfg mesh.Config, e []mesh.Endpoint, s []mesh.Subscriber) (mesh.Runtime, error) {
         return nats.New(c.(*nats.Client), cfg, e, s)
     })
-if err != nil { /* ErrUnknownTransport or the transport constructor's error */ }
+if err != nil { /* ErrNoRuntimeConstructor, ErrUnknownTransport, or the transport constructor's error */ }
 if err := rt.Start(ctx); err != nil { /* the transport's error */ }
 
 stop := make(chan os.Signal, 1)
