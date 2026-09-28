@@ -3,6 +3,7 @@ package grpcmesh_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
@@ -190,5 +191,147 @@ func TestNewRPCRuntimeWithoutARuntimeConstructor(t *testing.T) {
 
 	if !errors.Is(err, grpcmesh.ErrNoRuntimeConstructor) {
 		t.Errorf("err = %v, want ErrNoRuntimeConstructor", err)
+	}
+}
+
+// shopTarget returns a Target in deployment group shop over transport mem,
+// the RPCRuntime's in the override tests.
+func shopTarget(kind mesh.Kind, segments ...string) mesh.Target {
+	return mesh.Target{Segments: segments, Kind: kind, Metadata: map[string]string{mesh.DeploymentGroupKey: "shop", grpcmesh.TransportKey: "mem"}}
+}
+
+func TestNewRPCRuntimeWithEndpointsReplacesTheRegistrysEndpoints(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	grpcmesh.AddTransport("mem", memClient(t, hub))
+	grpcmesh.Register(bindings{
+		endpoints:   []mesh.Endpoint{{Target: shopTarget(mesh.KindRoute, "shop", "Registered", "Get")}},
+		subscribers: []mesh.Subscriber{{Target: shopTarget(mesh.KindTopic, "shop", "Registered", "Made")}},
+	})
+
+	_, err := grpcmesh.NewRPCRuntime("mem", "shop", memConfig, hub.NewRuntime,
+		grpcmesh.WithEndpoints(mesh.Endpoint{Target: shopTarget(mesh.KindRoute, "shop", "Given", "Get")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	built := hub.Runtimes()[0]
+	if len(built.Endpoints) != 1 || built.Endpoints[0].Target.Segments[1] != "Given" {
+		t.Errorf("runtime endpoints = %v, want only the given one", built.Endpoints)
+	}
+	if len(built.Subscribers) != 1 || built.Subscribers[0].Target.Segments[1] != "Registered" {
+		t.Errorf("runtime subscribers = %v, want the registered one", built.Subscribers)
+	}
+}
+
+func TestNewRPCRuntimeWithSubscribersReplacesTheRegistrysSubscribers(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	grpcmesh.AddTransport("mem", memClient(t, hub))
+	grpcmesh.Register(bindings{
+		endpoints:   []mesh.Endpoint{{Target: shopTarget(mesh.KindRoute, "shop", "Registered", "Get")}},
+		subscribers: []mesh.Subscriber{{Target: shopTarget(mesh.KindTopic, "shop", "Registered", "Made")}},
+	})
+
+	_, err := grpcmesh.NewRPCRuntime("mem", "shop", memConfig, hub.NewRuntime,
+		grpcmesh.WithSubscribers(mesh.Subscriber{Target: shopTarget(mesh.KindTopic, "shop", "Given", "Made")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	built := hub.Runtimes()[0]
+	if len(built.Endpoints) != 1 || built.Endpoints[0].Target.Segments[1] != "Registered" {
+		t.Errorf("runtime endpoints = %v, want the registered one", built.Endpoints)
+	}
+	if len(built.Subscribers) != 1 || built.Subscribers[0].Target.Segments[1] != "Given" {
+		t.Errorf("runtime subscribers = %v, want only the given one", built.Subscribers)
+	}
+}
+
+func TestNewRPCRuntimeWithEndpointsAndSubscribersReplacesBoth(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	grpcmesh.AddTransport("mem", memClient(t, hub))
+	grpcmesh.Register(bindings{
+		endpoints:   []mesh.Endpoint{{Target: shopTarget(mesh.KindRoute, "shop", "Registered", "Get")}},
+		subscribers: []mesh.Subscriber{{Target: shopTarget(mesh.KindTopic, "shop", "Registered", "Made")}},
+	})
+
+	_, err := grpcmesh.NewRPCRuntime("mem", "shop", memConfig, hub.NewRuntime,
+		grpcmesh.WithEndpoints(mesh.Endpoint{Target: shopTarget(mesh.KindRoute, "shop", "Given", "Get")}),
+		grpcmesh.WithSubscribers(mesh.Subscriber{Target: shopTarget(mesh.KindTopic, "shop", "Given", "Made")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	built := hub.Runtimes()[0]
+	if len(built.Endpoints) != 1 || built.Endpoints[0].Target.Segments[1] != "Given" {
+		t.Errorf("runtime endpoints = %v, want only the given one", built.Endpoints)
+	}
+	if len(built.Subscribers) != 1 || built.Subscribers[0].Target.Segments[1] != "Given" {
+		t.Errorf("runtime subscribers = %v, want only the given one", built.Subscribers)
+	}
+}
+
+func TestNewRPCRuntimeWithNoEndpointsServesNone(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	grpcmesh.AddTransport("mem", memClient(t, hub))
+	grpcmesh.Register(bindings{
+		endpoints:   []mesh.Endpoint{{Target: shopTarget(mesh.KindRoute, "shop", "Registered", "Get")}},
+		subscribers: []mesh.Subscriber{{Target: shopTarget(mesh.KindTopic, "shop", "Registered", "Made")}},
+	})
+
+	_, err := grpcmesh.NewRPCRuntime("mem", "shop", memConfig, hub.NewRuntime, grpcmesh.WithEndpoints())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	built := hub.Runtimes()[0]
+	if len(built.Endpoints) != 0 {
+		t.Errorf("runtime endpoints = %v, want none", built.Endpoints)
+	}
+	if len(built.Subscribers) != 1 || built.Subscribers[0].Target.Segments[1] != "Registered" {
+		t.Errorf("runtime subscribers = %v, want the registered one", built.Subscribers)
+	}
+}
+
+func TestNewRPCRuntimeRejectsAGivenTargetInAnotherDeploymentGroup(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	grpcmesh.AddTransport("mem", memClient(t, hub))
+	target := shopTarget(mesh.KindRoute, "billing", "Invoice", "Get")
+	target.Metadata[mesh.DeploymentGroupKey] = "billing"
+
+	_, err := grpcmesh.NewRPCRuntime("mem", "shop", memConfig, hub.NewRuntime, grpcmesh.WithEndpoints(mesh.Endpoint{Target: target}))
+
+	if !errors.Is(err, grpcmesh.ErrTargetOutsideRuntime) {
+		t.Fatalf("err = %v, want ErrTargetOutsideRuntime", err)
+	}
+	if msg := err.Error(); !strings.Contains(msg, "[billing Invoice Get]") || !strings.Contains(msg, `deployment_group "billing"`) {
+		t.Errorf("err = %q, want the segments and deployment_group named", msg)
+	}
+	if len(hub.Runtimes()) != 0 {
+		t.Error("newRuntime ran for a target outside the runtime")
+	}
+}
+
+func TestNewRPCRuntimeRejectsAGivenTargetOnAnotherTransport(t *testing.T) {
+	freshSingletons(t)
+	hub := memtransport.NewHub()
+	grpcmesh.AddTransport("mem", memClient(t, hub))
+	target := shopTarget(mesh.KindTopic, "shop", "Order", "Made")
+	target.Metadata[grpcmesh.TransportKey] = "nats"
+
+	_, err := grpcmesh.NewRPCRuntime("mem", "shop", memConfig, hub.NewRuntime, grpcmesh.WithSubscribers(mesh.Subscriber{Target: target}))
+
+	if !errors.Is(err, grpcmesh.ErrTargetOutsideRuntime) {
+		t.Fatalf("err = %v, want ErrTargetOutsideRuntime", err)
+	}
+	if msg := err.Error(); !strings.Contains(msg, "[shop Order Made]") || !strings.Contains(msg, `transport "nats"`) {
+		t.Errorf("err = %q, want the segments and transport named", msg)
+	}
+	if len(hub.Runtimes()) != 0 {
+		t.Error("newRuntime ran for a target outside the runtime")
 	}
 }

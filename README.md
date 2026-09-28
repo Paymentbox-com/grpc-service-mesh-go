@@ -94,7 +94,7 @@ the transport two bindings for it.
 
 ### Constructing and starting an RPCRuntime
 
-`NewRPCRuntime(transport, deploymentGroup, cfg, newRuntime)` takes the
+`NewRPCRuntime(transport, deploymentGroup, cfg, newRuntime, opts...)` takes the
 transport's `Client` from `DefaultTransportRouter` and the Endpoints and
 Subscribers whose Targets carry `deploymentGroup` from `DefaultRegistry`,
 copies `cfg` with `deployment_group` set to `deploymentGroup`, and calls
@@ -111,7 +111,7 @@ rt, err := grpcmesh.NewRPCRuntime("nats", "shop", mesh.Config{},
     func(c mesh.Client, cfg mesh.Config, e []mesh.Endpoint, s []mesh.Subscriber) (mesh.Runtime, error) {
         return nats.New(c.(*nats.Client), cfg, e, s)
     })
-if err != nil { /* ErrNoRuntimeConstructor, ErrUnknownTransport, or the transport constructor's error */ }
+if err != nil { /* ErrNoRuntimeConstructor, ErrUnknownTransport, ErrTargetOutsideRuntime, or the transport constructor's error */ }
 if err := rt.Start(ctx); err != nil { /* the transport's error */ }
 
 stop := make(chan os.Signal, 1)
@@ -125,6 +125,19 @@ _ = rt.Stop(drain)
 
 `nats.New` takes a `*nats.Client`, so the function asserts the `mesh.Client`
 the router passes to it, which is the one added under `nats`.
+
+`WithEndpoints` and `WithSubscribers` give the runtime a list to serve in
+place of the registry's list of that kind, so a process can serve part of a
+deployment group. The other kind still comes from the registry, and
+`WithEndpoints()` with no arguments serves no Endpoints. Every Target in a
+given list must carry the runtime's `deployment_group` and `transport`; one
+that does not yields `ErrTargetOutsideRuntime`, wrapped with the Target's
+segments and the key that differs.
+
+```go
+rt, err := grpcmesh.NewRPCRuntime("nats", "shop", mesh.Config{}, newRuntime,
+    grpcmesh.WithEndpoints(shop.OrderService{Place: place}.Endpoints()...))
+```
 
 `RPCRuntime` implements `mesh.Runtime`. `Start`, `Stop`, `Running`, and
 `Client` go to the transport's runtime, which `Underlying()` returns, so
