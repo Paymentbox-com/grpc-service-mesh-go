@@ -177,6 +177,12 @@ does not encode, are reported as `INTERNAL` (13) with the protobuf error's
 text. The endpoint handler never returns an error to the transport, so a
 transport's own handler-failure reporting is not involved.
 
+A TOPIC handler receives the decoded message and returns an error or nil. Its
+error goes to the transport as the `mesh.SubscriberHandler` error, unchanged,
+and the transport documents what it does with it; the NATS transport logs
+it. A message that does not decode returns the protobuf error the same way.
+Panics in a TOPIC handler are not recovered by this package.
+
 #### Reply metadata
 
 A ROUTE handler sets metadata on its reply with `SetReplyMetadata`. A later
@@ -193,12 +199,6 @@ Place: func(ctx context.Context, req *shop.Order) (*shop.Order, error) {
     return &shop.Order{Id: proto.String(store.Place(req.GetItem())), Item: req.Item}, nil
 }
 ```
-
-A TOPIC handler receives the decoded message and returns an error or nil. Its
-error goes to the transport as the `mesh.SubscriberHandler` error, unchanged,
-and the transport documents what it does with it; the NATS transport logs
-it. A message that does not decode returns the protobuf error the same way.
-Panics in a TOPIC handler are not recovered by this package.
 
 ### Calling
 
