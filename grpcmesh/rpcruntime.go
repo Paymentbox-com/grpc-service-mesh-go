@@ -66,7 +66,7 @@ func WithSubscribers(s ...mesh.Subscriber) RPCRuntimeOption {
 // and calls newRuntime with them. WithEndpoints and WithSubscribers each
 // replace the registry's list of that kind, and every Target in a list given
 // that way must carry deploymentGroup and transport. The runtime is built
-// here, so Underlying is set from this point; Start, Stop, and Running only
+// here, so TRuntime is set from this point; Start, Stop, and Running only
 // delegate. Services registered afterwards are not served. Errors are
 // ErrNoRuntimeConstructor, ErrUnknownTransport, ErrTargetOutsideRuntime, or
 // newRuntime's own.
@@ -129,8 +129,8 @@ func checkTarget(kind string, t mesh.Target, transport, group string) error {
 	return nil
 }
 
-// Underlying returns the transport's runtime.
-func (r *RPCRuntime) Underlying() mesh.Runtime {
+// TRuntime returns the transport's runtime.
+func (r *RPCRuntime) TRuntime() mesh.Runtime {
 	return r.underlying
 }
 

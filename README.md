@@ -107,7 +107,7 @@ Subscribers whose Targets carry `deploymentGroup` from `DefaultRegistry`,
 copies `cfg` with `deployment_group` set to `deploymentGroup`, and calls
 `newRuntime`, a `NewRuntimeFunc`, with them. `NewRuntimeFunc` is
 `func(mesh.Client, mesh.Config, []mesh.Endpoint, []mesh.Subscriber) (mesh.Runtime, error)`.
-The transport's runtime is built in the constructor, so `Underlying()` is set
+The transport's runtime is built in the constructor, so `TRuntime()` is set
 before `Start`. `Start`, `Stop`, and `Running` only delegate. The value passed
 as `deploymentGroup` is the deployment group, so a `deployment_group` key in
 `cfg` is overwritten, and `cfg` itself is left unchanged. Services registered
@@ -147,7 +147,7 @@ rt, err := grpcmesh.NewRPCRuntime("nats", "shop", mesh.Config{}, newRuntime,
 ```
 
 `RPCRuntime` implements `mesh.Runtime`. `Start`, `Stop`, `Running`, and
-`Client` go to the transport's runtime, which `Underlying()` returns, so
+`Client` go to the transport's runtime, which `TRuntime()` returns, so
 `Client()` is the router's client for the transport and `Stop` closes it after the drain.
 `Transport()` and `DeploymentGroup()` return what the runtime was built for.
 

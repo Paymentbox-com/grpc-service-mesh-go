@@ -30,8 +30,8 @@ func TestNewRPCRuntimePassesTheGroupsBindingsAndConfigToNewRuntime(t *testing.T)
 	if len(built) != 1 {
 		t.Fatalf("newRuntime ran %d times, want 1", len(built))
 	}
-	if rt.Underlying() != built[0] {
-		t.Error("Underlying() is not the runtime newRuntime built")
+	if rt.TRuntime() != built[0] {
+		t.Error("TRuntime() is not the runtime newRuntime built")
 	}
 	if built[0].Config[mesh.DeploymentGroupKey] != "testproto" || built[0].Config["url"] != memConfig["url"] {
 		t.Errorf("runtime config = %v, want the given config plus deployment_group", built[0].Config)
