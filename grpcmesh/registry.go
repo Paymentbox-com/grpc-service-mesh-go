@@ -1,8 +1,6 @@
 package grpcmesh
 
 import (
-	"sync"
-
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
 )
 
@@ -13,10 +11,9 @@ type RPCService interface {
 	Subscribers() []mesh.Subscriber
 }
 
-// Registry collects every Endpoint and Subscriber a process serves. It is
-// safe for concurrent use.
+// Registry collects every Endpoint and Subscriber a process serves. Services
+// are registered at boot, before any RPCRuntime is built.
 type Registry struct {
-	mu          sync.Mutex
 	endpoints   []mesh.Endpoint
 	subscribers []mesh.Subscriber
 }
@@ -40,8 +37,6 @@ func Register(svc RPCService) {
 func (r *Registry) Register(svc RPCService) {
 	endpoints, subscribers := svc.Endpoints(), svc.Subscribers()
 
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	r.endpoints = append(r.endpoints, endpoints...)
 	r.subscribers = append(r.subscribers, subscribers...)
 }
@@ -49,8 +44,6 @@ func (r *Registry) Register(svc RPCService) {
 // Endpoints returns the registered Endpoints whose Target carries
 // deployment_group metadata equal to group.
 func (r *Registry) Endpoints(group string) []mesh.Endpoint {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	var out []mesh.Endpoint
 	for _, e := range r.endpoints {
 		if e.Target.Metadata[mesh.DeploymentGroupKey] == group {
@@ -63,8 +56,6 @@ func (r *Registry) Endpoints(group string) []mesh.Endpoint {
 // Subscribers returns the registered Subscribers whose Target carries
 // deployment_group metadata equal to group.
 func (r *Registry) Subscribers(group string) []mesh.Subscriber {
-	r.mu.Lock()
-	defer r.mu.Unlock()
 	var out []mesh.Subscriber
 	for _, s := range r.subscribers {
 		if s.Target.Metadata[mesh.DeploymentGroupKey] == group {
