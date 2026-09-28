@@ -11,8 +11,8 @@ const (
 	incomingKey contextKey = iota
 	outgoingKey
 	optionsKey
-	replyHolderKey
-	replyTargetKey
+	handlerReplyKey
+	callerReplyKey
 )
 
 // IncomingMetadata returns the metadata of the message a handler is serving,
@@ -27,7 +27,7 @@ func IncomingMetadata(ctx context.Context) map[string]string {
 // already set. Content-Type and Grpc-Status are set by the package and
 // override values in md. Outside an endpoint handler it has no effect.
 func SetReplyMetadata(ctx context.Context, md map[string]string) {
-	if reply, ok := ctx.Value(replyHolderKey).(map[string]string); ok {
+	if reply, ok := ctx.Value(handlerReplyKey).(map[string]string); ok {
 		maps.Copy(reply, md)
 	}
 }
@@ -37,7 +37,7 @@ func SetReplyMetadata(ctx context.Context, md map[string]string) {
 // failure before a reply arrives, such as a transport error, leaves *md
 // unchanged. Publish ignores it.
 func WithReplyMetadata(ctx context.Context, md *map[string]string) context.Context {
-	return context.WithValue(ctx, replyTargetKey, md)
+	return context.WithValue(ctx, callerReplyKey, md)
 }
 
 // WithOutgoingMetadata returns a context that makes Call and Publish send md
@@ -57,12 +57,12 @@ func withIncomingMetadata(ctx context.Context, md map[string]string) context.Con
 	return context.WithValue(ctx, incomingKey, md)
 }
 
-func withReplyHolder(ctx context.Context, reply map[string]string) context.Context {
-	return context.WithValue(ctx, replyHolderKey, reply)
+func withHandlerReply(ctx context.Context, reply map[string]string) context.Context {
+	return context.WithValue(ctx, handlerReplyKey, reply)
 }
 
-func replyMetadataTarget(ctx context.Context) *map[string]string {
-	md, _ := ctx.Value(replyTargetKey).(*map[string]string)
+func callerReplyMetadata(ctx context.Context) *map[string]string {
+	md, _ := ctx.Value(callerReplyKey).(*map[string]string)
 	return md
 }
 

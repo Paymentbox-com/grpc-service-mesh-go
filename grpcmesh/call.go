@@ -35,7 +35,7 @@ func Call[Req, Resp proto.Message](ctx context.Context, t mesh.Target, req Req) 
 	if err != nil {
 		return zero, err
 	}
-	if md := replyMetadataTarget(ctx); md != nil {
+	if md := callerReplyMetadata(ctx); md != nil {
 		*md = maps.Clone(reply.Metadata)
 	}
 	if _, ok := reply.Metadata[GrpcStatusKey]; ok {

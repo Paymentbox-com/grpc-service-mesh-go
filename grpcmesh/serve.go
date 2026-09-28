@@ -37,7 +37,7 @@ func NewEndpoint[Req, Resp proto.Message](t mesh.Target, fn func(context.Context
 				return statusReply(NewMeshError(code.Code_INTERNAL, err.Error()), contentType()), nil
 			}
 			reply := map[string]string{}
-			ctx = withReplyHolder(withIncomingMetadata(ctx, m.Metadata), reply)
+			ctx = withHandlerReply(withIncomingMetadata(ctx, m.Metadata), reply)
 			resp, err := serve(ctx, req, fn)
 			if err != nil {
 				return statusReply(asMeshError(err), withContentType(reply)), nil
