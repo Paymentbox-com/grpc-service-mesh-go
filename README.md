@@ -1,6 +1,6 @@
 # grpc-service-mesh-go
 
-The Go library of the
+The Go implementation of the
 [gRPC Service Mesh API](https://github.com/Paymentbox-com/grpc-service-mesh-api),
 module `github.com/Paymentbox-com/grpc-service-mesh-go`, package
 `grpcmesh`, imported as `github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh`.
@@ -8,13 +8,20 @@ The specification is the authority for everything this package does. It
 carries protobuf messages over any transport that implements the
 [Service Mesh API Specification](https://github.com/Paymentbox-com/service-mesh-api)
 through the Go contract in
-[service-mesh-go](https://github.com/Paymentbox-com/service-mesh-go). The
-Ruby library is
-[grpc-service-mesh-ruby](https://github.com/Paymentbox-com/grpc-service-mesh-ruby).
+[service-mesh-go](https://github.com/Paymentbox-com/service-mesh-go).
 
-The package holds the specification's non-generated types, `TransportRouter`,
-`Registry`, `RPCRuntime`, and `MeshError`, and the generic helpers that
-generated code calls, `NewEndpoint`, `NewSubscriber`, `Call`, and `Publish`.
+The `grpcmesh` package holds the specification's non-generated types: 
+* `TransportRouter`
+* `Registry`
+* `RPCRuntime`
+* `MeshError`
+
+It also holds the generic helpers that generated code calls:
+* `NewEndpoint`
+* `NewSubscriber`
+* `Call`
+* `Publish`
+
 Generated code comes from `grpc-service-mesh-gen` in the specification
 repository and lives in the definitions project. Its dependencies are
 `github.com/Paymentbox-com/service-mesh-go/mesh`, `google.golang.org/protobuf`,
