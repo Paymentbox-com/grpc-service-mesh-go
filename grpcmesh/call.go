@@ -2,6 +2,7 @@ package grpcmesh
 
 import (
 	"context"
+	"maps"
 
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
 	"google.golang.org/genproto/googleapis/rpc/code"
@@ -14,6 +15,10 @@ import (
 // reply into a fresh Resp. The message carries the metadata set with
 // WithOutgoingMetadata plus Content-Type, and the transport receives the
 // options set with WithTransportOptions.
+//
+// When the context carries a target set with WithReplyMetadata, Call sets it
+// to a copy of the reply's metadata on every reply it receives, successful
+// or not. A failure before a reply arrives leaves it unchanged.
 //
 // Grpc-Status on the reply is read before the payload. When it is set, the
 // payload is decoded as google.rpc.Status and returned as a *MeshError. When
@@ -29,6 +34,9 @@ func Call[Req, Resp proto.Message](ctx context.Context, t mesh.Target, req Req) 
 	reply, err := c.Request(ctx, msg, transportOptions(ctx))
 	if err != nil {
 		return zero, err
+	}
+	if md := replyMetadataTarget(ctx); md != nil {
+		*md = maps.Clone(reply.Metadata)
 	}
 	if _, ok := reply.Metadata[GrpcStatusKey]; ok {
 		st, err := decode[*status.Status](reply.Payload)
@@ -67,6 +75,6 @@ func prepare(ctx context.Context, t mesh.Target, req proto.Message) (mesh.Client
 	if err != nil {
 		return nil, mesh.Message{}, NewMeshError(code.Code_INTERNAL, err.Error())
 	}
-	msg := mesh.Message{Target: t, Metadata: contentType(outgoingMetadata(ctx)), Payload: payload}
+	msg := mesh.Message{Target: t, Metadata: withContentType(outgoingMetadata(ctx)), Payload: payload}
 	return c, msg, nil
 }

@@ -136,6 +136,83 @@ func TestEndpointRepliesUnknownForAPanic(t *testing.T) {
 	}
 }
 
+func TestEndpointRepliesWithTheReplyMetadataTheHandlerSets(t *testing.T) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7", "Region": "east"})
+		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Region": "west"})
+		return order("reply"), nil
+	})
+
+	reply, err := ep.Handler(context.Background(), mesh.Message{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if reply.Metadata["Request-Id"] != "7" || reply.Metadata["Region"] != "west" {
+		t.Errorf("reply metadata = %v, want Request-Id 7 and the later Region west", reply.Metadata)
+	}
+	if reply.Metadata[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
+		t.Errorf("reply metadata = %v, want Content-Type", reply.Metadata)
+	}
+}
+
+func TestEndpointRepliesAMeshErrorWithTheReplyMetadataTheHandlerSets(t *testing.T) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Retry-After": "30"})
+		return nil, grpcmesh.NewNotFoundError("no such key")
+	})
+
+	reply, err := ep.Handler(context.Background(), mesh.Message{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if reply.Metadata["Retry-After"] != "30" {
+		t.Errorf("reply metadata = %v, want Retry-After", reply.Metadata)
+	}
+	if reply.Metadata[grpcmesh.GrpcStatusKey] != "5" {
+		t.Errorf("Grpc-Status = %q, want 5", reply.Metadata[grpcmesh.GrpcStatusKey])
+	}
+}
+
+func TestEndpointOverwritesContentTypeAndGrpcStatusTheHandlerSetsOnAMeshErrorReply(t *testing.T) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+		grpcmesh.SetReplyMetadata(ctx, map[string]string{grpcmesh.ContentTypeKey: "text/plain", grpcmesh.GrpcStatusKey: "0"})
+		return nil, grpcmesh.NewNotFoundError("no such key")
+	})
+
+	reply, err := ep.Handler(context.Background(), mesh.Message{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if reply.Metadata[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
+		t.Errorf("Content-Type = %q, want the package's value over the handler's", reply.Metadata[grpcmesh.ContentTypeKey])
+	}
+	if reply.Metadata[grpcmesh.GrpcStatusKey] != "5" {
+		t.Errorf("Grpc-Status = %q, want the package's 5 over the handler's", reply.Metadata[grpcmesh.GrpcStatusKey])
+	}
+}
+
+func TestEndpointOverwritesContentTypeAndDropsGrpcStatusTheHandlerSetsOnASuccessfulReply(t *testing.T) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+		grpcmesh.SetReplyMetadata(ctx, map[string]string{grpcmesh.ContentTypeKey: "text/plain", grpcmesh.GrpcStatusKey: "5"})
+		return order("reply"), nil
+	})
+
+	reply, err := ep.Handler(context.Background(), mesh.Message{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if reply.Metadata[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
+		t.Errorf("Content-Type = %q, want the package's value over the handler's", reply.Metadata[grpcmesh.ContentTypeKey])
+	}
+	if v, ok := reply.Metadata[grpcmesh.GrpcStatusKey]; ok {
+		t.Errorf("Grpc-Status = %q on a successful reply, want none", v)
+	}
+}
+
 func TestEndpointRepliesInternalForAnUndecodableRequest(t *testing.T) {
 	called := false
 	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(context.Context, *testproto.Order) (*testproto.Order, error) {
@@ -213,6 +290,19 @@ func TestSubscriberReturnsTheDecodeErrorWithoutRunningTheHandler(t *testing.T) {
 	}
 	if called {
 		t.Error("handler ran on an undecodable message")
+	}
+}
+
+func TestSetReplyMetadataInASubscriberHasNoEffect(t *testing.T) {
+	sub := grpcmesh.NewSubscriber(testproto.OrderTargets.Placed, func(ctx context.Context, _ *testproto.Order) error {
+		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7"})
+		return nil
+	})
+
+	err := sub.Handler(context.Background(), mesh.Message{})
+
+	if err != nil {
+		t.Errorf("err = %v, want nil", err)
 	}
 }
 

@@ -177,6 +177,23 @@ does not encode, are reported as `INTERNAL` (13) with the protobuf error's
 text. The endpoint handler never returns an error to the transport, so a
 transport's own handler-failure reporting is not involved.
 
+#### Reply metadata
+
+A ROUTE handler sets metadata on its reply with `SetReplyMetadata`. A later
+call adds keys and overwrites the ones already set. The reply carries the
+metadata on success and on a `*MeshError` reply, including the `UNKNOWN`
+reply for another error or a panic. The package writes `Content-Type` and
+`Grpc-Status` after the application's values, so its own values win, and a
+successful reply carries no `Grpc-Status`. Outside a ROUTE handler, such as
+in a TOPIC handler, `SetReplyMetadata` has no effect.
+
+```go
+Place: func(ctx context.Context, req *shop.Order) (*shop.Order, error) {
+    grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7"})
+    return &shop.Order{Id: proto.String(store.Place(req.GetItem())), Item: req.Item}, nil
+}
+```
+
 A TOPIC handler receives the decoded message and returns an error or nil. Its
 error goes to the transport as the `mesh.SubscriberHandler` error, unchanged,
 and the transport documents what it does with it; the NATS transport logs
@@ -226,6 +243,19 @@ one inside the `Status`. When it is not set, the payload is decoded as the
 response type. A payload that does not decode, and a request that does not
 encode, return an `INTERNAL` `*MeshError`. Errors from the router, the
 Service Mesh API, and the transport are returned unchanged.
+
+#### Reply metadata
+
+`WithReplyMetadata` gives `Call` a map pointer to fill. On a successful reply
+and on a `*MeshError` reply, `Call` sets it to a copy of the reply's metadata.
+A failure before a reply arrives, such as a transport error, leaves it
+unchanged. `Publish` ignores it.
+
+```go
+var reply map[string]string
+order, err := shop.OrderClient.Place(grpcmesh.WithReplyMetadata(ctx, &reply), req)
+fmt.Println(reply["Request-Id"])
+```
 
 ### MeshError
 

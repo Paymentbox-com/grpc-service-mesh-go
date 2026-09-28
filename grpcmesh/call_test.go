@@ -101,6 +101,58 @@ func TestCallReturnsTheMeshErrorAReplyCarries(t *testing.T) {
 	}
 }
 
+func TestCallSetsTheReplyMetadataOfASuccessfulReply(t *testing.T) {
+	serveMem(t, testproto.OrderService{
+		Place: func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+			grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7"})
+			return &testproto.Order{}, nil
+		},
+	})
+	var md map[string]string
+
+	if _, err := testproto.OrderClient.Place(grpcmesh.WithReplyMetadata(context.Background(), &md), &testproto.Order{}); err != nil {
+		t.Fatal(err)
+	}
+
+	if md["Request-Id"] != "7" || md[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
+		t.Errorf("reply metadata = %v, want Request-Id and Content-Type", md)
+	}
+}
+
+func TestCallSetsTheReplyMetadataOfAMeshErrorReply(t *testing.T) {
+	serveMem(t, testproto.OrderService{
+		Place: func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+			grpcmesh.SetReplyMetadata(ctx, map[string]string{"Retry-After": "30"})
+			return nil, grpcmesh.NewNotFoundError("no such key")
+		},
+	})
+	var md map[string]string
+
+	_, err := testproto.OrderClient.Place(grpcmesh.WithReplyMetadata(context.Background(), &md), &testproto.Order{})
+
+	var me *grpcmesh.MeshError
+	if !errors.As(err, &me) {
+		t.Fatalf("err = %v, want *MeshError", err)
+	}
+	if md["Retry-After"] != "30" || md[grpcmesh.GrpcStatusKey] != "5" {
+		t.Errorf("reply metadata = %v, want Retry-After and Grpc-Status 5", md)
+	}
+}
+
+func TestCallLeavesTheReplyMetadataUnchangedOnATransportError(t *testing.T) {
+	serveRaw(t, nil, nil)
+	md := map[string]string{"Before": "call"}
+
+	_, err := testproto.OrderClient.Place(grpcmesh.WithReplyMetadata(context.Background(), &md), &testproto.Order{})
+
+	if !errors.Is(err, memtransport.ErrNoReceiver) {
+		t.Fatalf("err = %v, want the transport's error", err)
+	}
+	if len(md) != 1 || md["Before"] != "call" {
+		t.Errorf("reply metadata = %v, want it unchanged", md)
+	}
+}
+
 func TestCallReturnsInternalForAnUndecodableResponse(t *testing.T) {
 	serveRaw(t, []mesh.Endpoint{{Target: testproto.OrderTargets.Place, Handler: func(context.Context, mesh.Message) (mesh.Message, error) {
 		return mesh.Message{Payload: garbage}, nil

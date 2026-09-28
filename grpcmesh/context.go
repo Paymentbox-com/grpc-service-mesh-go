@@ -1,6 +1,9 @@
 package grpcmesh
 
-import "context"
+import (
+	"context"
+	"maps"
+)
 
 type contextKey int
 
@@ -8,6 +11,8 @@ const (
 	incomingKey contextKey = iota
 	outgoingKey
 	optionsKey
+	replyHolderKey
+	replyTargetKey
 )
 
 // IncomingMetadata returns the metadata of the message a handler is serving,
@@ -15,6 +20,24 @@ const (
 func IncomingMetadata(ctx context.Context) map[string]string {
 	md, _ := ctx.Value(incomingKey).(map[string]string)
 	return md
+}
+
+// SetReplyMetadata merges md into the metadata of the reply the endpoint
+// handler serving ctx sends. A later call adds keys and overwrites the ones
+// already set. Content-Type and Grpc-Status are set by the package and
+// override values in md. Outside an endpoint handler it has no effect.
+func SetReplyMetadata(ctx context.Context, md map[string]string) {
+	if reply, ok := ctx.Value(replyHolderKey).(map[string]string); ok {
+		maps.Copy(reply, md)
+	}
+}
+
+// WithReplyMetadata returns a context that makes Call set *md to a copy of
+// the reply's metadata, on a successful reply and on a MeshError reply. A
+// failure before a reply arrives, such as a transport error, leaves *md
+// unchanged. Publish ignores it.
+func WithReplyMetadata(ctx context.Context, md *map[string]string) context.Context {
+	return context.WithValue(ctx, replyTargetKey, md)
 }
 
 // WithOutgoingMetadata returns a context that makes Call and Publish send md
@@ -32,6 +55,15 @@ func WithTransportOptions(ctx context.Context, opts map[string]string) context.C
 
 func withIncomingMetadata(ctx context.Context, md map[string]string) context.Context {
 	return context.WithValue(ctx, incomingKey, md)
+}
+
+func withReplyHolder(ctx context.Context, reply map[string]string) context.Context {
+	return context.WithValue(ctx, replyHolderKey, reply)
+}
+
+func replyMetadataTarget(ctx context.Context) *map[string]string {
+	md, _ := ctx.Value(replyTargetKey).(*map[string]string)
+	return md
 }
 
 func outgoingMetadata(ctx context.Context) map[string]string {
