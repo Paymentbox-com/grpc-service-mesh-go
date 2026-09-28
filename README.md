@@ -256,7 +256,7 @@ and a `Content-Type` in the metadata map is overwritten.
 The map a ROUTE method returns is a copy of the reply's metadata, on a
 successful reply and on a `*MeshError` reply. It is nil when no reply
 arrived, such as on a transport error. Reply metadata never carries keys that
-start with `Mesh-Option-`: the serving side drops them from what a handler
+start with `Mesh-Option-`. The serving side drops them from what a handler
 sets with `SetReplyMetadata`, and the calling side drops them from the reply
 it receives.
 
