@@ -27,6 +27,13 @@ const (
 	// Its value is the code as a decimal integer string.
 	GrpcStatusKey = "Grpc-Status"
 
+	// OptionPrefix starts the keys of an outgoing metadata map that are
+	// transport options. Call and Publish pass each such key, with the prefix
+	// removed, to the transport's Request or Publish options, and send the
+	// other keys as message metadata. Reply metadata never carries such keys.
+	// The match is exact and case-sensitive.
+	OptionPrefix = "Mesh-Option-"
+
 	// TransportKey is the Target metadata key naming the transport a Target
 	// is served over. The TransportRouter resolves the value.
 	TransportKey = "transport"

@@ -175,6 +175,25 @@ func TestEndpointRepliesAMeshErrorWithTheReplyMetadataTheHandlerSets(t *testing.
 	}
 }
 
+func TestEndpointDropsOptionKeysTheHandlerSetsOnItsReply(t *testing.T) {
+	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7", "Mesh-Option-request_timeout": "2s"})
+		return order("reply"), nil
+	})
+
+	reply, err := ep.Handler(context.Background(), mesh.Message{})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if reply.Metadata["Request-Id"] != "7" {
+		t.Errorf("reply metadata = %v, want Request-Id", reply.Metadata)
+	}
+	if v, ok := reply.Metadata["Mesh-Option-request_timeout"]; ok {
+		t.Errorf("reply metadata carries Mesh-Option-request_timeout = %q, want it dropped", v)
+	}
+}
+
 func TestEndpointOverwritesContentTypeAndGrpcStatusTheHandlerSetsOnAMeshErrorReply(t *testing.T) {
 	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{grpcmesh.ContentTypeKey: "text/plain", grpcmesh.GrpcStatusKey: "0"})

@@ -169,7 +169,7 @@ func TestRPCRuntimeServesAGeneratedService(t *testing.T) {
 		},
 	})
 
-	resp, err := testproto.OrderClient.Place(context.Background(), order("ask"))
+	resp, _, err := testproto.OrderClient.Place(context.Background(), order("ask"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

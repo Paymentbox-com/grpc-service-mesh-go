@@ -17,10 +17,11 @@ import (
 // IncomingMetadata, and replies with the encoded Resp under Content-Type
 // application/x-protobuf.
 //
-// The reply carries the metadata fn sets with SetReplyMetadata, on a
-// successful reply and on a MeshError reply. The package writes Content-Type
-// and Grpc-Status after the application's values, so its own values win, and
-// a successful reply carries no Grpc-Status.
+// The reply carries the metadata fn sets with SetReplyMetadata, without keys
+// that start with OptionPrefix, on a successful reply and on a MeshError
+// reply. The package writes Content-Type and Grpc-Status after the
+// application's values, so its own values win, and a successful reply
+// carries no Grpc-Status.
 //
 // A *MeshError from fn becomes a reply whose payload is the encoded
 // google.rpc.Status and whose Grpc-Status metadata is the code as a decimal

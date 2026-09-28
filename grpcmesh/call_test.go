@@ -23,7 +23,7 @@ func TestCallSendsTheEncodedRequestAndDecodesTheReply(t *testing.T) {
 		},
 	})
 
-	resp, err := grpcmesh.Call[*testproto.Order, *testproto.Order](context.Background(), testproto.OrderTargets.Place, order("ask"))
+	resp, _, err := grpcmesh.Call[*testproto.Order, *testproto.Order](context.Background(), testproto.OrderTargets.Place, order("ask"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,14 +53,13 @@ func TestCallSendsTheEncodedRequestAndDecodesTheReply(t *testing.T) {
 	}
 }
 
-func TestCallSendsOutgoingMetadataAndTransportOptions(t *testing.T) {
+func TestCallSendsTheMetadataAsMessageMetadata(t *testing.T) {
 	hub := serveMem(t, testproto.OrderService{
 		Place: func(context.Context, *testproto.Order) (*testproto.Order, error) { return &testproto.Order{}, nil },
 	})
-	ctx := grpcmesh.WithOutgoingMetadata(context.Background(), map[string]string{"Request-Id": "7", grpcmesh.ContentTypeKey: "text/plain"})
-	ctx = grpcmesh.WithTransportOptions(ctx, map[string]string{"request_timeout": "2s"})
 
-	if _, err := testproto.OrderClient.Place(ctx, &testproto.Order{}); err != nil {
+	_, _, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, map[string]string{"Request-Id": "7", grpcmesh.ContentTypeKey: "text/plain"})
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -71,8 +70,30 @@ func TestCallSendsOutgoingMetadataAndTransportOptions(t *testing.T) {
 	if sent.Message.Metadata[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
 		t.Errorf("Content-Type = %q, want the package's value over the caller's", sent.Message.Metadata[grpcmesh.ContentTypeKey])
 	}
-	if sent.Options["request_timeout"] != "2s" {
-		t.Errorf("options = %v, want request_timeout", sent.Options)
+	if len(sent.Options) != 0 {
+		t.Errorf("options = %v, want none", sent.Options)
+	}
+}
+
+func TestCallPassesOptionKeysAsTransportOptions(t *testing.T) {
+	hub := serveMem(t, testproto.OrderService{
+		Place: func(context.Context, *testproto.Order) (*testproto.Order, error) { return &testproto.Order{}, nil },
+	})
+	md := map[string]string{"Request-Id": "7", "Mesh-Option-request_timeout": "2s"}
+
+	if _, _, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, md); err != nil {
+		t.Fatal(err)
+	}
+
+	sent := hub.Runtimes()[0].Client().(*memtransport.Client).Requests()[0]
+	if len(sent.Options) != 1 || sent.Options["request_timeout"] != "2s" {
+		t.Errorf("options = %v, want only request_timeout 2s", sent.Options)
+	}
+	if len(sent.Message.Metadata) != 2 || sent.Message.Metadata["Request-Id"] != "7" {
+		t.Errorf("sent metadata = %v, want Request-Id and Content-Type only", sent.Message.Metadata)
+	}
+	if len(md) != 2 || md["Mesh-Option-request_timeout"] != "2s" {
+		t.Errorf("caller's map = %v, want it unchanged", md)
 	}
 }
 
@@ -83,7 +104,7 @@ func TestCallReturnsTheMeshErrorAReplyCarries(t *testing.T) {
 		},
 	})
 
-	resp, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
+	resp, _, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, nil)
 
 	if resp != nil {
 		t.Errorf("resp = %v, want nil", resp)
@@ -101,34 +122,33 @@ func TestCallReturnsTheMeshErrorAReplyCarries(t *testing.T) {
 	}
 }
 
-func TestCallSetsTheReplyMetadataOfASuccessfulReply(t *testing.T) {
+func TestCallReturnsTheReplyMetadataOfASuccessfulReply(t *testing.T) {
 	serveMem(t, testproto.OrderService{
 		Place: func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
 			grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7"})
 			return &testproto.Order{}, nil
 		},
 	})
-	var md map[string]string
 
-	if _, err := testproto.OrderClient.Place(grpcmesh.WithReplyMetadata(context.Background(), &md), &testproto.Order{}); err != nil {
+	_, md, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, nil)
+	if err != nil {
 		t.Fatal(err)
 	}
 
-	if md["Request-Id"] != "7" || md[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
+	if len(md) != 2 || md["Request-Id"] != "7" || md[grpcmesh.ContentTypeKey] != grpcmesh.ContentTypeProtobuf {
 		t.Errorf("reply metadata = %v, want Request-Id and Content-Type", md)
 	}
 }
 
-func TestCallSetsTheReplyMetadataOfAMeshErrorReply(t *testing.T) {
+func TestCallReturnsTheReplyMetadataOfAMeshErrorReply(t *testing.T) {
 	serveMem(t, testproto.OrderService{
 		Place: func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
 			grpcmesh.SetReplyMetadata(ctx, map[string]string{"Retry-After": "30"})
 			return nil, grpcmesh.NewNotFoundError("no such key")
 		},
 	})
-	var md map[string]string
 
-	_, err := testproto.OrderClient.Place(grpcmesh.WithReplyMetadata(context.Background(), &md), &testproto.Order{})
+	_, md, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, nil)
 
 	var me *grpcmesh.MeshError
 	if !errors.As(err, &me) {
@@ -139,17 +159,19 @@ func TestCallSetsTheReplyMetadataOfAMeshErrorReply(t *testing.T) {
 	}
 }
 
-func TestCallLeavesTheReplyMetadataUnchangedOnATransportError(t *testing.T) {
-	serveRaw(t, nil, nil)
-	md := map[string]string{"Before": "call"}
+func TestCallDropsOptionKeysFromTheReplyMetadata(t *testing.T) {
+	serveRaw(t, []mesh.Endpoint{{Target: testproto.OrderTargets.Place, Handler: func(context.Context, mesh.Message) (mesh.Message, error) {
+		md := map[string]string{"Request-Id": "7", "Mesh-Option-request_timeout": "2s"}
+		return mesh.Message{Metadata: md, Payload: mustMarshal(t, order("reply"))}, nil
+	}}}, nil)
 
-	_, err := testproto.OrderClient.Place(grpcmesh.WithReplyMetadata(context.Background(), &md), &testproto.Order{})
-
-	if !errors.Is(err, memtransport.ErrNoReceiver) {
-		t.Fatalf("err = %v, want the transport's error", err)
+	_, md, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, nil)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if len(md) != 1 || md["Before"] != "call" {
-		t.Errorf("reply metadata = %v, want it unchanged", md)
+
+	if len(md) != 1 || md["Request-Id"] != "7" {
+		t.Errorf("reply metadata = %v, want only Request-Id", md)
 	}
 }
 
@@ -158,7 +180,7 @@ func TestCallReturnsInternalForAnUndecodableResponse(t *testing.T) {
 		return mesh.Message{Payload: garbage}, nil
 	}}}, nil)
 
-	_, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
+	_, _, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, nil)
 
 	var me *grpcmesh.MeshError
 	if !errors.As(err, &me) {
@@ -174,7 +196,7 @@ func TestCallReturnsInternalForAnUndecodableStatusPayload(t *testing.T) {
 		return mesh.Message{Metadata: map[string]string{grpcmesh.GrpcStatusKey: "5"}, Payload: garbage}, nil
 	}}}, nil)
 
-	_, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
+	_, _, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, nil)
 
 	var me *grpcmesh.MeshError
 	if !errors.As(err, &me) {
@@ -185,20 +207,23 @@ func TestCallReturnsInternalForAnUndecodableStatusPayload(t *testing.T) {
 	}
 }
 
-func TestCallPassesTransportErrorsThrough(t *testing.T) {
+func TestCallPassesTransportErrorsThroughWithNoReplyMetadata(t *testing.T) {
 	serveRaw(t, nil, nil)
 
-	_, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
+	_, md, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, nil)
 
 	if !errors.Is(err, memtransport.ErrNoReceiver) {
 		t.Errorf("err = %v, want the transport's error unchanged", err)
+	}
+	if md != nil {
+		t.Errorf("reply metadata = %v, want nil", md)
 	}
 }
 
 func TestCallUnknownTransport(t *testing.T) {
 	freshSingletons(t)
 
-	_, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{})
+	_, _, err := testproto.OrderClient.Place(context.Background(), &testproto.Order{}, nil)
 
 	if !errors.Is(err, grpcmesh.ErrUnknownTransport) {
 		t.Errorf("err = %v, want ErrUnknownTransport", err)
@@ -214,7 +239,7 @@ func TestPublishSendsTheEncodedMessageToTheSubscriber(t *testing.T) {
 		},
 	})
 
-	err := testproto.OrderClient.Placed(context.Background(), order("made"))
+	err := testproto.OrderClient.Placed(context.Background(), order("made"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -234,10 +259,29 @@ func TestPublishSendsTheEncodedMessageToTheSubscriber(t *testing.T) {
 	}
 }
 
+func TestPublishSplitsOptionKeysFromTheMessageMetadata(t *testing.T) {
+	hub := serveMem(t, testproto.OrderService{
+		Placed: func(context.Context, *testproto.Order) error { return nil },
+	})
+	md := map[string]string{"Request-Id": "7", "Mesh-Option-publish_timeout": "2s"}
+
+	if err := testproto.OrderClient.Placed(context.Background(), &testproto.Order{}, md); err != nil {
+		t.Fatal(err)
+	}
+
+	sent := hub.Runtimes()[0].Client().(*memtransport.Client).Publishes()[0]
+	if len(sent.Options) != 1 || sent.Options["publish_timeout"] != "2s" {
+		t.Errorf("options = %v, want only publish_timeout 2s", sent.Options)
+	}
+	if len(sent.Message.Metadata) != 2 || sent.Message.Metadata["Request-Id"] != "7" {
+		t.Errorf("sent metadata = %v, want Request-Id and Content-Type only", sent.Message.Metadata)
+	}
+}
+
 func TestPublishPassesKindMismatchThrough(t *testing.T) {
 	serveRaw(t, nil, nil)
 
-	err := grpcmesh.Publish(context.Background(), testproto.OrderTargets.Place, &testproto.Order{})
+	err := grpcmesh.Publish(context.Background(), testproto.OrderTargets.Place, &testproto.Order{}, nil)
 
 	if !errors.Is(err, mesh.ErrKindMismatch) {
 		t.Errorf("err = %v, want mesh.ErrKindMismatch unchanged", err)

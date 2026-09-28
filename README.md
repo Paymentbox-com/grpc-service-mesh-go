@@ -203,20 +203,22 @@ Place: func(ctx context.Context, req *shop.Order) (*shop.Order, error) {
 ### Calling
 
 A generated client is a package-level variable with one method per rpc
-method. A ROUTE method returns the decoded response or an error; a TOPIC
-method publishes and returns an error or nil. Message metadata and the
-transport's per-call options ride on the context.
+method. Each method takes the context, the request, and a metadata map. A
+ROUTE method returns the decoded response, the reply's metadata, and an
+error. A TOPIC method publishes and returns an error or nil.
 
 ```go
-ctx := grpcmesh.WithOutgoingMetadata(ctx, map[string]string{"Tenant": "acme"})
-ctx = grpcmesh.WithTransportOptions(ctx, map[string]string{nats.RequestTimeoutKey: "2s"})
+md := map[string]string{
+    "Tenant": "acme",
+    grpcmesh.OptionPrefix + nats.RequestTimeoutKey: "2s",
+}
 
-order, err := shop.OrderClient.Place(ctx, &shop.Order{Item: proto.String("book")})
+order, reply, err := shop.OrderClient.Place(ctx, &shop.Order{Item: proto.String("book")}, md)
 
 var me *grpcmesh.MeshError
 switch {
 case err == nil:
-    fmt.Println(order.GetId())
+    fmt.Println(order.GetId(), reply["Request-Id"])
 case errors.As(err, &me):
     // me.Code(), me.Message(), me.Details(); a detail unpacks with UnmarshalTo
     for _, d := range me.Details() {
@@ -232,30 +234,40 @@ default:
     // nats.ErrNoResponders, nats.ErrTimeout, ...
 }
 
-err = shop.OrderClient.Placed(ctx, order)
+err = shop.OrderClient.Placed(ctx, order, md)
 ```
 
-Every message the package sends carries `Content-Type: application/x-protobuf`;
-a `Content-Type` in the outgoing metadata is overwritten. `Call` reads
-`Grpc-Status` on the reply before the payload. When it is set, the payload is
-decoded as `google.rpc.Status` and returned as a `*MeshError`; the code is the
-one inside the `Status`. When it is not set, the payload is decoded as the
-response type. A payload that does not decode, and a request that does not
-encode, return an `INTERNAL` `*MeshError`. Errors from the router, the
-Service Mesh API, and the transport are returned unchanged.
+#### Metadata and transport options
+
+The keys of the metadata map that start with `Mesh-Option-`
+(`grpcmesh.OptionPrefix`) are transport options. `Call` and `Publish` remove
+them from the message metadata and pass each one to the transport's
+`Request` or `Publish` options with the prefix removed, so
+`Mesh-Option-request_timeout: 2s` reaches the transport as option
+`request_timeout: 2s`. The match is exact and case-sensitive. Every other key
+is message metadata. The caller's map is not modified. A nil map sends a
+message whose only metadata is `Content-Type`, with no options.
+
+Every message the package sends carries `Content-Type: application/x-protobuf`,
+and a `Content-Type` in the metadata map is overwritten.
 
 #### Reply metadata
 
-`WithReplyMetadata` gives `Call` a map pointer to fill. On a successful reply
-and on a `*MeshError` reply, `Call` sets it to a copy of the reply's metadata.
-A failure before a reply arrives, such as a transport error, leaves it
-unchanged. `Publish` ignores it.
+The map a ROUTE method returns is a copy of the reply's metadata, on a
+successful reply and on a `*MeshError` reply. It is nil when no reply
+arrived, such as on a transport error. Reply metadata never carries keys that
+start with `Mesh-Option-`: the serving side drops them from what a handler
+sets with `SetReplyMetadata`, and the calling side drops them from the reply
+it receives.
 
-```go
-var reply map[string]string
-order, err := shop.OrderClient.Place(grpcmesh.WithReplyMetadata(ctx, &reply), req)
-fmt.Println(reply["Request-Id"])
-```
+#### Reply decoding
+
+`Call` reads `Grpc-Status` on the reply before the payload. When it is set,
+the payload is decoded as `google.rpc.Status` and returned as a `*MeshError`;
+the code is the one inside the `Status`. When it is not set, the payload is
+decoded as the response type. A payload that does not decode, and a request
+that does not encode, return an `INTERNAL` `*MeshError`. Errors from the
+router, the Service Mesh API, and the transport are returned unchanged.
 
 ### MeshError
 
@@ -291,7 +303,7 @@ a reply never claims details it does not carry.
 The generator is `grpc-service-mesh-gen` from the specification repository:
 
 ```sh
-go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.6.0
+go install github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@v0.8.0
 grpc-service-mesh-gen --definitions definitions --go_out=lib/go --ruby_out=lib/ruby
 ```
 
@@ -373,13 +385,13 @@ type orderClient struct{}
 var OrderClient orderClient
 
 // Place calls the ROUTE method Place.
-func (orderClient) Place(ctx context.Context, req *Order) (*Order, error) {
-	return grpcmesh.Call[*Order, *Order](ctx, OrderTargets.Place, req)
+func (orderClient) Place(ctx context.Context, req *Order, md map[string]string) (*Order, map[string]string, error) {
+	return grpcmesh.Call[*Order, *Order](ctx, OrderTargets.Place, req, md)
 }
 
 // Placed publishes to the TOPIC method Placed.
-func (orderClient) Placed(ctx context.Context, req *Order) error {
-	return grpcmesh.Publish(ctx, OrderTargets.Placed, req)
+func (orderClient) Placed(ctx context.Context, req *Order, md map[string]string) error {
+	return grpcmesh.Publish(ctx, OrderTargets.Placed, req, md)
 }
 ```
 
