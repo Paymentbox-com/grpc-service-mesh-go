@@ -1,6 +1,6 @@
 # grpc-service-mesh-go
 
-`grpcmesh` is the Go implementation of the
+grpc-service-mesh-go is the Go implementation of the
 [gRPC Service Mesh API](https://github.com/Paymentbox-com/grpc-service-mesh-api).
 It carries protobuf messages over any transport that implements the
 [Service Mesh API Specification](https://github.com/Paymentbox-com/service-mesh-api)

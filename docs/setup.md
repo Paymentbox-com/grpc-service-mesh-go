@@ -55,7 +55,7 @@ Each rpc method it implements becomes a Service Mesh API `Endpoint` or
 method whose field is nil is not served.
 
 ```go
-orders := &Orders{store: store, audit: audit}
+orders := &Orders{dbModel: dbModel, logger: logger}
 grpcmesh.Register(shop.OrderService{Place: orders.Place, Placed: orders.Placed})
 ```
 

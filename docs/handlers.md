@@ -30,23 +30,32 @@ the context and the decoded request. The functions are ordinary Go closures or
 method values, so they can use whatever dependencies the application has in
 scope.
 
+In this example and the others on this page, `DBModel` stands for the
+application's own database model for orders, which this package knows nothing
+about. Its `InStock(item)` says whether an item is available, and
+`Create(item)` saves a new order and returns the saved record, whose
+`GetId()` and `GetItem()` return its id and item. `logger` is a standard
+`*slog.Logger`.
+
 ```go
 type Orders struct {
-    store *Store
-    audit *Audit
+    dbModel *DBModel
+    logger  *slog.Logger
 }
 
 // ROUTE: returns a *shop.Order
 func (o *Orders) Place(ctx context.Context, req *shop.Order) (*shop.Order, error) {
-    return &shop.Order{Id: proto.String(o.store.Place(req.GetItem())), Item: req.Item}, nil
+    order := o.dbModel.Create(req.GetItem())
+    return &shop.Order{Id: proto.String(order.GetId()), Item: proto.String(order.GetItem())}, nil
 }
 
 // TOPIC: returns an error or nil
 func (o *Orders) Placed(ctx context.Context, ev *shop.Order) error {
-    return o.audit.Record(ev)
+    o.logger.Info("order placed", "id", ev.GetId())
+    return nil
 }
 
-orders := &Orders{store: store, audit: audit}
+orders := &Orders{dbModel: dbModel, logger: logger}
 grpcmesh.Register(shop.OrderService{Place: orders.Place, Placed: orders.Placed})
 ```
 
@@ -65,7 +74,8 @@ func (o *Orders) Place(ctx context.Context, req *shop.Order) (*shop.Order, error
         return nil, grpcmesh.NewInvalidArgumentError("Tenant is required",
             &errdetails.ErrorInfo{Reason: "MISSING_TENANT", Domain: "shop"})
     }
-    return &shop.Order{Id: proto.String(o.store.Place(req.GetItem())), Item: req.Item}, nil
+    order := o.dbModel.Create(req.GetItem())
+    return &shop.Order{Id: proto.String(order.GetId()), Item: proto.String(order.GetItem())}, nil
 }
 ```
 
@@ -79,11 +89,12 @@ detail messages. `NewMeshError(code, msg, details...)` takes any
 
 ```go
 func (o *Orders) Place(ctx context.Context, req *shop.Order) (*shop.Order, error) {
-    if !o.store.InStock(req.GetItem()) {
+    if !o.dbModel.InStock(req.GetItem()) {
         return nil, grpcmesh.NewNotFoundError("no such item",
             &errdetails.ErrorInfo{Reason: "ITEM_MISSING", Domain: "shop"})
     }
-    return &shop.Order{Id: proto.String(o.store.Place(req.GetItem())), Item: req.Item}, nil
+    order := o.dbModel.Create(req.GetItem())
+    return &shop.Order{Id: proto.String(order.GetId()), Item: proto.String(order.GetItem())}, nil
 }
 ```
 
@@ -118,12 +129,13 @@ metadata.
 
 ```go
 func (o *Orders) Place(ctx context.Context, req *shop.Order) (*shop.Order, error) {
-    if !o.store.InStock(req.GetItem()) {
+    if !o.dbModel.InStock(req.GetItem()) {
         grpcmesh.SetReplyMetadata(ctx, map[string]string{"Retry-After": "30"})
         return nil, grpcmesh.NewNotFoundError("no such item")
     }
     grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7"})
-    return &shop.Order{Id: proto.String(o.store.Place(req.GetItem())), Item: req.Item}, nil
+    order := o.dbModel.Create(req.GetItem())
+    return &shop.Order{Id: proto.String(order.GetId()), Item: proto.String(order.GetItem())}, nil
 }
 ```
 
