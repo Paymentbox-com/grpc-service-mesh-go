@@ -3,6 +3,7 @@ package grpcmesh_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
@@ -186,8 +187,8 @@ func TestCallReturnsInternalForAnUndecodableResponse(t *testing.T) {
 	if !errors.As(err, &me) {
 		t.Fatalf("err = %v, want *MeshError", err)
 	}
-	if me.Code() != code.Code_INTERNAL || me.Message() == "" {
-		t.Errorf("MeshError = %v %q, want INTERNAL with text", me.Code(), me.Message())
+	if me.Code() != code.Code_INTERNAL || !strings.HasPrefix(me.Message(), "reply does not decode as shop.Order: ") {
+		t.Errorf("MeshError = %v %q, want INTERNAL naming the response type", me.Code(), me.Message())
 	}
 }
 
@@ -202,8 +203,8 @@ func TestCallReturnsInternalForAnUndecodableStatusPayload(t *testing.T) {
 	if !errors.As(err, &me) {
 		t.Fatalf("err = %v, want *MeshError", err)
 	}
-	if me.Code() != code.Code_INTERNAL {
-		t.Errorf("code = %v, want INTERNAL", me.Code())
+	if me.Code() != code.Code_INTERNAL || !strings.HasPrefix(me.Message(), "reply does not decode as google.rpc.Status: ") {
+		t.Errorf("MeshError = %v %q, want INTERNAL naming google.rpc.Status", me.Code(), me.Message())
 	}
 }
 

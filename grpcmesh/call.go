@@ -2,6 +2,7 @@ package grpcmesh
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
@@ -40,13 +41,13 @@ func Call[Req, Resp proto.Message](ctx context.Context, t mesh.Target, req Req, 
 	}
 	replyMD, _ := splitOptions(reply.Metadata)
 	if _, ok := reply.Metadata[GrpcStatusKey]; ok {
-		st, err := decode[*status.Status](reply.Payload)
+		st, err := decode[*status.Status]("reply", reply.Payload)
 		if err != nil {
 			return zero, replyMD, NewMeshError(code.Code_INTERNAL, err.Error())
 		}
 		return zero, replyMD, MeshErrorFromProto(st)
 	}
-	resp, err := decode[Resp](reply.Payload)
+	resp, err := decode[Resp]("reply", reply.Payload)
 	if err != nil {
 		return zero, replyMD, NewMeshError(code.Code_INTERNAL, err.Error())
 	}
@@ -75,7 +76,7 @@ func prepare(t mesh.Target, req proto.Message, md map[string]string) (mesh.Clien
 	}
 	payload, err := proto.Marshal(req)
 	if err != nil {
-		return nil, mesh.Message{}, nil, NewMeshError(code.Code_INTERNAL, err.Error())
+		return nil, mesh.Message{}, nil, NewMeshError(code.Code_INTERNAL, fmt.Sprintf("request does not encode as %s: %v", req.ProtoReflect().Descriptor().FullName(), err))
 	}
 	msgMD, opts := splitOptions(md)
 	msgMD[ContentTypeKey] = ContentTypeProtobuf

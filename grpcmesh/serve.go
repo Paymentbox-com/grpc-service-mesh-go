@@ -27,13 +27,13 @@ import (
 // google.rpc.Status and whose Grpc-Status metadata is the code as a decimal
 // string. Any other error, or a panic, is reported the same way as UNKNOWN
 // with the failure's text. A request that does not decode, or a response
-// that does not encode, is reported as INTERNAL with the protobuf error's
-// text. The handler never returns an error to the runtime.
+// that does not encode, is reported as INTERNAL with a message naming the
+// message type. The handler never returns an error to the runtime.
 func NewEndpoint[Req, Resp proto.Message](t mesh.Target, fn func(context.Context, Req) (Resp, error)) mesh.Endpoint {
 	return mesh.Endpoint{
 		Target: t,
 		Handler: func(ctx context.Context, m mesh.Message) (mesh.Message, error) {
-			req, err := decode[Req](m.Payload)
+			req, err := decode[Req]("request", m.Payload)
 			if err != nil {
 				return statusReply(NewMeshError(code.Code_INTERNAL, err.Error()), contentType()), nil
 			}
@@ -45,7 +45,7 @@ func NewEndpoint[Req, Resp proto.Message](t mesh.Target, fn func(context.Context
 			}
 			payload, err := proto.Marshal(resp)
 			if err != nil {
-				return statusReply(NewMeshError(code.Code_INTERNAL, err.Error()), withContentType(reply)), nil
+				return statusReply(NewMeshError(code.Code_INTERNAL, fmt.Sprintf("response does not encode as %s: %v", resp.ProtoReflect().Descriptor().FullName(), err)), withContentType(reply)), nil
 			}
 			md := withContentType(reply)
 			delete(md, GrpcStatusKey)
@@ -57,13 +57,13 @@ func NewEndpoint[Req, Resp proto.Message](t mesh.Target, fn func(context.Context
 // NewSubscriber wraps fn as the mesh.Subscriber for a TOPIC target. The
 // handler decodes the message into a fresh Req, exposes the message metadata
 // through IncomingMetadata, and returns fn's error to the runtime unchanged.
-// A message that does not decode returns the protobuf error. Panics are not
-// recovered.
+// A message that does not decode returns an error naming the message type.
+// Panics are not recovered.
 func NewSubscriber[Req proto.Message](t mesh.Target, fn func(context.Context, Req) error) mesh.Subscriber {
 	return mesh.Subscriber{
 		Target: t,
 		Handler: func(ctx context.Context, m mesh.Message) error {
-			req, err := decode[Req](m.Payload)
+			req, err := decode[Req]("request", m.Payload)
 			if err != nil {
 				return err
 			}
@@ -105,12 +105,13 @@ func statusReply(me *MeshError, md map[string]string) mesh.Message {
 }
 
 // decode unmarshals payload into a fresh message of type M, obtained from
-// the type's zero value, so M is a pointer to a generated message type.
-func decode[M proto.Message](payload []byte) (M, error) {
+// the type's zero value, so M is a pointer to a generated message type. what
+// names the payload in the error, such as "request" or "reply".
+func decode[M proto.Message](what string, payload []byte) (M, error) {
 	var zero M
 	m := zero.ProtoReflect().New().Interface().(M)
 	if err := proto.Unmarshal(payload, m); err != nil {
-		return zero, err
+		return zero, fmt.Errorf("%s does not decode as %s: %w", what, m.ProtoReflect().Descriptor().FullName(), err)
 	}
 	return m, nil
 }

@@ -12,28 +12,33 @@ not of this library.
 ```go
 import (
     "github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
-    "github.com/Paymentbox-com/service-mesh-go/mesh"
-    "github.com/Paymentbox-com/service-mesh-nats-go/nats"
 
     "example.com/definitions/servicemaps"
 )
 
-client, err := nats.NewClient(mesh.Config{nats.URLKey: os.Getenv("NATS_URL")}, servicemaps.Nats)
-if err != nil { /* the transport's error */ }
+// client is the transport's mesh.Client, built from its configuration and servicemaps.Nats.
 grpcmesh.AddTransport("nats", client)
 ```
 
+The application owns each client and the connection it holds. Clients are
+added at boot, before any call is made or any `RPCRuntime` is built. Generated
+clients and `RPCRuntime` find the process router themselves, so nothing
+generated takes a router argument.
+
 `DefaultTransportRouter.Client(name)` returns the client the application added under
 `name`, and it is what every generated client method on that transport
-sends through. A process that only calls builds its clients, adds them, and
-runs `DefaultTransportRouter.Close()` before exit, which closes every client and joins their
-errors, so the transport flushes what it has buffered. An `RPCRuntime` for a
-transport is built on the router's client for that transport, and its `Stop` closes that
-client as well.
+sends through. `AddTransport` under a name already present replaces the client.
+Looking up a name that was not added returns `ErrUnknownTransport`, listed under
+[Library Errors](mesherror.md#library-errors).
 
-`AddTransport` under a name already present replaces the client. A lookup for a
-transport that was not added yields `ErrUnknownTransport`, wrapped with the name, from
-`Client`, `NewRPCRuntime`, `Call`, and `Publish`.
+A process that only calls builds its clients, adds them, and runs
+`DefaultTransportRouter.Close()` before exit, so each transport sends what it has
+buffered. `Close` closes every client, even when some of them fail to close. It
+returns nil when every client closed, and otherwise one error that joins each
+failure, prefixed with its transport name.
+
+An `RPCRuntime` for a transport is built on the router's client for that
+transport, and its `Stop` closes that client as well.
 
 ## Registering a Service
 
@@ -57,8 +62,9 @@ grpcmesh.Register(shop.OrderService{
 })
 ```
 
-Every registered binding is kept, so two registrations that have identical `Targets` hand
-the transport two bindings for it.
+The registry keeps every endpoint and subscriber registered with it. If two
+registered services serve the same `Target`, the transport is given two
+endpoints or subscribers for it.
 
 ## Constructing and Starting an RPCRuntime
 
@@ -75,11 +81,8 @@ A `deployment_group` key in `cfg` is overwritten by `deploymentGroup`, and `cfg`
 registered after the constructor has run are not served.
 
 ```go
-rt, err := grpcmesh.NewRPCRuntime("nats", "shop", mesh.Config{},
-    func(c mesh.Client, cfg mesh.Config, e []mesh.Endpoint, s []mesh.Subscriber) (mesh.Runtime, error) {
-        return nats.New(c.(*nats.Client), cfg, e, s)
-    })
-if err != nil { /* ErrNoRuntimeConstructor, ErrUnknownTransport, ErrTargetOutsideRuntime, or the transport constructor's error */ }
+rt, err := grpcmesh.NewRPCRuntime("nats", "shop", mesh.Config{}, newRuntime)
+if err != nil { /* a library error, or the error newRuntime returns */ }
 if err := rt.Start(ctx); err != nil { /* the transport's error */ }
 
 stop := make(chan os.Signal, 1)
@@ -91,16 +94,18 @@ defer cancel()
 _ = rt.Stop(drain)
 ```
 
-In the above example, `nats.New` takes a `*nats.Client`, so the function asserts the `mesh.Client`
-the router passes to it, which is the one added under `nats`.
+In the above example, `newRuntime` is a `NewRuntimeFunc` that builds the transport's `mesh.Runtime`. When the
+transport's runtime constructor takes the transport's own client type, `newRuntime` asserts the `mesh.Client` the
+router passes to it, which is the one added under `nats`.
+
+`NewRPCRuntime` returns a library error when `newRuntime` is nil, when the transport was not added to the router,
+or when a given `Target` is outside the runtime. These are listed under
+[Library Errors](mesherror.md#library-errors). The error `newRuntime` returns is passed through unchanged.
 
 `WithEndpoints` and `WithSubscribers` give the runtime a list to serve in
 place of the registry's list of that kind, so a process can serve only part of a
 deployment group. `WithEndpoints()` or `WithSubscribers()` with no arguments serves none of that kind.
-
-Every `Target` in a given list must carry the runtime's `deployment_group` and `transport`, and
-passing one that does not yields `ErrTargetOutsideRuntime`, wrapped with the Target's segments
-and the key that differs.
+Every `Target` in a given list must carry the runtime's `deployment_group` and `transport`.
 
 ```go
 rt, err := grpcmesh.NewRPCRuntime("nats", "shop", mesh.Config{}, newRuntime,
@@ -109,5 +114,7 @@ rt, err := grpcmesh.NewRPCRuntime("nats", "shop", mesh.Config{}, newRuntime,
 
 `RPCRuntime` implements `mesh.Runtime`. `Start`, `Stop`, `Running`, and
 `Client` delegate to the underlying transport runtime, which `TRuntime()` returns.
+`Stop` closes the client. The transport documents what its runtime does,
+including what `Stop` returns and how it treats a subscriber handler that returns an error.
 `Transport()` and `DeploymentGroup()` return the transport and deployment group the
 `RPCRuntime` was built for.

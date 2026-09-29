@@ -31,25 +31,6 @@ only on the include path. A project that runs this command itself runs the
 generator with `--mesh-only`, which writes the mesh code and skips the
 message runs.
 
-## Tools and Tests
-
-Tool versions are pinned in `mise.toml` and installed with `mise install`.
-`just` lists the recipes. The ones used day to day:
-
-| recipe | what it does |
-|---|---|
-| `just build` | compile everything |
-| `just test` | run the suite with the race detector |
-| `just proto` | run `just proto-spec` and `just proto-test` |
-| `just proto-spec` | compile `mesh/options.proto` from grpc-service-mesh-api at `spec_tag` into `meshoptions/options.pb.go` |
-| `just proto-test` | regenerate `internal/testproto/order.pb.go` with `protoc` and `protoc-gen-go` |
-| `just check` | format check, vet, test, vulnerability scan, lint; what CI runs |
-
-The tests run against `internal/memtransport`, an in-process transport
-whose `Hub` builds `mesh.Client` values and `mesh.Runtime` values on
-them. They deliver to each other and record what they were built with and what they sent. Nothing in this
-repository needs a broker. Tests that need a real transport live outside it.
-
 ### Updating the Compiled Specification Protos
 
 `meshoptions/options.pb.go` is the compiled form of `mesh/options.proto` in
@@ -69,8 +50,52 @@ options or enum values. To adopt one:
 2. Run `just proto`.
 3. Review the diff under `meshoptions/`.
 4. Run `just check`.
-5. Bump the version, commit, and tag.
+5. Set the new version in `VERSION`, commit, push `master`, wait for CI to pass, and run `just release`.
 
 The extension numbers in `mesh/options.proto` are part of every definitions
 project's compiled descriptors, and the specification never changes or
 reuses one.
+
+## Tools and Tests
+
+```
+mise install
+just check      # format check, vet, test, vulnerability scan, lint
+```
+
+Tool versions are pinned in `mise.toml`. `just` with no arguments lists the recipes.
+
+| Recipe | What it does |
+|---|---|
+| `just build` | Compiles everything. |
+| `just test` | Runs the test suite with the race detector. |
+| `just proto` | Runs `just proto-spec` and `just proto-test`. |
+| `just proto-spec` | Compiles `mesh/options.proto` from grpc-service-mesh-api at `spec_tag` into `meshoptions/options.pb.go`. |
+| `just proto-test` | Regenerates `internal/testproto/order.pb.go` with `protoc` and `protoc-gen-go`. |
+| `just vet` | Runs `go vet`. |
+| `just fmt` | Formats the code in place with `gofmt`. |
+| `just tidy` | Reconciles `go.mod` and `go.sum`. |
+| `just vuln` | Reports reachable vulnerabilities with `govulncheck`. |
+| `just lint` | Reports lint findings with `golangci-lint`. |
+| `just check` | Runs the format check, `vet`, `test`, `vuln`, and `lint`, in the order CI runs them. |
+| `just release` | Tags the current commit with the version in `VERSION`, pushes the tag, and asks the Go module proxy to fetch it. It refuses a working tree with changes. |
+
+A Go version is released by its tag alone. Nothing is built or uploaded, and
+the proxy fetch only makes the new version resolve for others right away.
+
+The tests run against `internal/memtransport`, an in-process transport
+whose `Hub` builds `mesh.Client` values and `mesh.Runtime` values on
+them. They deliver to each other and record what they were built with and what
+they sent, so nothing in this repository needs a broker.
+
+`internal/testproto/` holds the `shop.Order` message, its `protoc-gen-go`
+output, and the reference generated file shown under
+[Generated Code](generated-code.md). `just proto-test` regenerates the message
+code.
+
+`meshoptions/meshoptions_test.go` checks that the five extensions are
+registered by their full names.
+
+Tests that use the process router and registry call `freshSingletons`, which
+installs an empty `DefaultTransportRouter` and `DefaultRegistry` for the test
+and restores the previous ones when the test ends.

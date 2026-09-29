@@ -22,9 +22,23 @@ It also holds the generic helpers that generated code calls:
 * `Publish`
 
 Generated code comes from `grpc-service-mesh-gen` in the specification
-repository and lives in a definitions project. Its dependencies are
+repository and lives in a definitions project.
+
+## Install
+
+```sh
+go get github.com/Paymentbox-com/grpc-service-mesh-go
+```
+
+```go
+import "github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
+```
+
+Requires Go 1.26 or newer. The module depends on
 `github.com/Paymentbox-com/service-mesh-go/mesh`, `google.golang.org/protobuf`,
 and `google.golang.org/genproto/googleapis/rpc`.
+
+No transport is a dependency. The application adds the transport module it uses.
 
 ## Usage
 
@@ -34,7 +48,7 @@ generated from `.proto` files.
 
 ### Reference Examples
 
-The examples in this README use the `shop.OrderService` from the specification: a `ROUTE` method `Place` and a
+The examples in these docs use the `shop.OrderService` from the specification: a `ROUTE` method `Place` and a
 `TOPIC` method `Placed`, served over the transport named `nats` in deployment group `shop`. The generated package is
 `shop`, and the generated per-transport maps are in `servicemaps`. The library's own reference copy of that generated
 code is in `internal/testproto/`, described under [Generated Code](docs/generated-code.md).
@@ -43,7 +57,8 @@ code is in `internal/testproto/`, described under [Generated Code](docs/generate
 
 - [Setup](docs/setup.md): configuring the `TransportRouter`, registering services, and running an `RPCRuntime`
 - [Handlers](docs/handlers.md): writing `ROUTE` and `TOPIC` handlers, returning errors, and setting reply metadata
-- [Calling](docs/calling.md): calling generated clients, metadata and transport options, and reply metadata
-- [MeshError](docs/mesherror.md): constructing and reading `MeshError`
+- [Calling](docs/calling.md): calling generated clients, metadata and transport options, reply metadata, and the wire format
+- [MeshError](docs/mesherror.md): constructing and reading `MeshError`, and the errors the library returns
 - [Generated Code](docs/generated-code.md): what the generator emits for Go, with the reference file
-- [Development](docs/development.md): the specification protos, the recipes, and updating the compiled protos
+- [Public API](docs/public-api.md): every exported name in `grpcmesh`
+- [Development](docs/development.md): the specification protos, the recipes, and the tests

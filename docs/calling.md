@@ -1,6 +1,5 @@
 # Calling
 
-
 A [generated client](generated-code.md) is a package-level variable with one method per `rpc`
 method. Each method takes the context, the request, and a metadata map. A
 `ROUTE` method returns the decoded response, the reply's metadata, and an
@@ -9,7 +8,7 @@ error. A `TOPIC` method publishes and returns an error or nil.
 ```go
 md := map[string]string{
     "Tenant": "acme",
-    grpcmesh.OptionPrefix + nats.RequestTimeoutKey: "2s",
+    grpcmesh.OptionPrefix + "request_timeout": "2s",
 }
 
 order, reply, err := shop.OrderClient.Place(ctx, &shop.Order{Item: proto.String("book")}, md)
@@ -29,8 +28,8 @@ case errors.As(err, &me):
 case errors.Is(err, grpcmesh.ErrUnknownTransport):
     // the target's transport is not configured on the router
 default:
-    // a Service Mesh API or transport error, unchanged: mesh.ErrKindMismatch,
-    // nats.ErrNoResponders, nats.ErrTimeout, ...
+    // a Service Mesh API or transport error, unchanged, such as
+    // mesh.ErrKindMismatch or the transport's timeout error
 }
 
 err = shop.OrderClient.Placed(ctx, order, md)
@@ -47,9 +46,6 @@ them from the message metadata and pass each one to the transport's
 is message metadata. The caller's map is not modified. A nil map sends a
 message whose only metadata is `Content-Type`, with no options.
 
-Every message the package sends carries `Content-Type: application/x-protobuf`,
-and a `Content-Type` in the metadata map is overwritten.
-
 ## Reply Metadata
 
 The map a `ROUTE` method returns is a copy of the reply's metadata, on a
@@ -62,8 +58,26 @@ it receives.
 ## Reply Decoding
 
 `Call` reads `Grpc-Status` on the reply before the payload. When it is set,
-the payload is decoded as `google.rpc.Status` and returned as a `*MeshError`;
-the code is the one inside the `Status`. When it is not set, the payload is
-decoded as the response type. A payload that does not decode, and a request
-that does not encode, return an `INTERNAL` `*MeshError`. Errors from the
-router, the Service Mesh API, and the transport are returned unchanged.
+the payload is decoded as `google.rpc.Status` and returned as a `*MeshError`,
+whose code is the one inside the `Status`. When it is not set, the payload is
+decoded as the response type.
+
+A payload that does not decode returns an `INTERNAL` (13) `*MeshError` whose
+message names the expected type, such as
+`reply does not decode as shop.Order: ...`. A request that does not encode
+returns an `INTERNAL` `*MeshError` the same way, from `Call` and from
+`Publish`.
+
+Errors from the router, the Service Mesh API, and the transport are returned
+unchanged. The router's error is listed under
+[Library Errors](mesherror.md#library-errors).
+
+## Wire Format
+
+Every message the package sends carries the metadata
+`Content-Type: application/x-protobuf`. A `Content-Type` in the metadata map is
+overwritten.
+
+A reply that reports a `*MeshError` also carries `Grpc-Status`, the code as a
+decimal integer string, and its payload is the encoded `google.rpc.Status`.
+Every other payload is the message's binary protobuf encoding.

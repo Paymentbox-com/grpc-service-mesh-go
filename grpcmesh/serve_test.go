@@ -250,8 +250,8 @@ func TestEndpointRepliesInternalForAnUndecodableRequest(t *testing.T) {
 	if reply.Metadata[grpcmesh.GrpcStatusKey] != "13" {
 		t.Errorf("Grpc-Status = %q, want 13", reply.Metadata[grpcmesh.GrpcStatusKey])
 	}
-	if st := statusOf(t, reply); st.GetCode() != 13 || st.GetMessage() == "" {
-		t.Errorf("status = %v, want INTERNAL with text", st)
+	if st := statusOf(t, reply); st.GetCode() != 13 || !strings.HasPrefix(st.GetMessage(), "request does not decode as shop.Order: ") {
+		t.Errorf("status = %v, want INTERNAL naming the request type", st)
 	}
 }
 
@@ -304,8 +304,8 @@ func TestSubscriberReturnsTheDecodeErrorWithoutRunningTheHandler(t *testing.T) {
 
 	err := sub.Handler(context.Background(), mesh.Message{Payload: garbage})
 
-	if err == nil {
-		t.Fatal("err = nil, want the decode error")
+	if err == nil || !strings.HasPrefix(err.Error(), "request does not decode as shop.Order: ") {
+		t.Fatalf("err = %v, want the decode error naming the message type", err)
 	}
 	if called {
 		t.Error("handler ran on an undecodable message")

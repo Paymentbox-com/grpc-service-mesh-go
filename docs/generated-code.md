@@ -1,6 +1,5 @@
 # Generated Code
 
-
 The generator is `grpc-service-mesh-gen` from the specification repository:
 
 ```sh
