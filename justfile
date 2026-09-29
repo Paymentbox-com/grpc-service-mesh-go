@@ -40,7 +40,7 @@ proto-spec:
     mise exec -- protoc --proto_path="$spec" --go_out=. --go_opt=module=github.com/Paymentbox-com/grpc-service-mesh-go "$spec/mesh/options.proto"
 
 # The grpc-service-mesh-gen version the reference output in internal/testproto is generated with
-gen_version := "v0.8.1"
+gen_version := "v0.8.2"
 
 # Regenerate internal/testproto from internal/testproto/definitions with grpc-service-mesh-gen at {{gen_version}}
 [group('build')]
