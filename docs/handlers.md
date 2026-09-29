@@ -2,16 +2,16 @@
 
 A handler is the application code that serves one rpc method. The generator
 writes an `RPCService` struct for each proto service, with one function field
-per rpc, and the struct serves nothing until those fields are set. The
+per rpc method, and the struct serves nothing until those fields are set. The
 application implements its handlers by setting a function on each field for an
-rpc it serves. It then registers the struct value, as described under
+rpc method it serves. It then registers the struct value, as described under
 [Registering a Service](setup.md#registering-a-service).
 
 The package turns each set field into a Service Mesh API `Endpoint`, for a
-`ROUTE` rpc, or `Subscriber`, for a `TOPIC` rpc. Each one decodes the inbound
-payload, calls the function, and for a `ROUTE` rpc encodes the reply. The
-sections below describe what a handler function receives, what it returns, and
-how its failures reach the caller.
+`ROUTE` rpc method, or `Subscriber`, for a `TOPIC` rpc method. Each one decodes
+the inbound payload, calls the function, and for a `ROUTE` rpc method encodes
+the reply. The sections below describe what a handler function receives, what
+it returns, and how its failures reach the caller.
 
 ## Implementing an RPCService
 
@@ -51,7 +51,7 @@ grpcmesh.Register(shop.OrderService{Place: orders.Place, Placed: orders.Placed})
 ```
 
 A nil field is not served, so a process can implement only some of a
-service's rpcs.
+service's rpc methods.
 
 ## Endpoint Handlers
 
@@ -71,10 +71,11 @@ func (o *Orders) Place(ctx context.Context, req *shop.Order) (*shop.Order, error
 
 ## Returning an Error
 
-A handler reports an application failure by returning a [`*MeshError`](mesherror.md) as its
-error. The per-code constructors, such as `NewNotFoundError` and
-`NewInvalidArgumentError`, take the message and any detail messages.
-`NewMeshError(code, msg, details...)` takes any `google.rpc.Code`.
+A handler reports an application failure by returning a
+[`*MeshError`](mesherror.md) as its error. The per-code constructors, such as
+`NewNotFoundError` and `NewInvalidArgumentError`, take the message and any
+detail messages. `NewMeshError(code, msg, details...)` takes any
+`google.rpc.Code`.
 
 ```go
 func (o *Orders) Place(ctx context.Context, req *shop.Order) (*shop.Order, error) {

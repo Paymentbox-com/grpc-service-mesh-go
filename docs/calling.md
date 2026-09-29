@@ -1,9 +1,15 @@
 # Calling
 
-A [generated client](generated-code.md) is a package-level variable with one method per `rpc`
-method. Each method takes the context, the request, and a metadata map. A
-`ROUTE` method returns the decoded response, the reply's metadata, and an
-error. A `TOPIC` method publishes and returns an error or nil.
+An application calls a service through its [generated
+client](generated-code.md), a package-level variable with one method per rpc
+method. Every call looks up the transport's `Client` through the router, so the
+same calling code works in a process that serves and in one that only calls,
+once the router holds a client for the transport, as described under
+[Setup](setup.md).
+
+Each method takes the context, the request, and a metadata map. A `ROUTE`
+method returns the decoded response, the reply's metadata, and an error. A
+`TOPIC` method publishes and returns an error or nil.
 
 ```go
 md := map[string]string{
@@ -32,19 +38,24 @@ default:
     // mesh.ErrKindMismatch or the transport's timeout error
 }
 
-err = shop.OrderClient.Placed(ctx, order, md)
+event := &shop.Order{Id: proto.String("o-1"), Item: proto.String("book")}
+err = shop.OrderClient.Placed(ctx, event, md)
 ```
 
 ## Metadata and Transport Options
 
 The keys of the metadata map that start with `Mesh-Option-`
 (`grpcmesh.OptionPrefix`) are transport options. `Call` and `Publish` remove
-them from the message metadata and pass each one to the transport's
-`Request` or `Publish` options with the prefix removed, so
-`Mesh-Option-request_timeout: 2s` reaches the transport as option
-`request_timeout: 2s`. The match is exact and case-sensitive. Every other key
-is message metadata. The caller's map is not modified. A nil map sends a
-message whose only metadata is `Content-Type`, with no options.
+them from the message metadata and pass each one to the transport's `Request`
+or `Publish` options with the prefix removed. The match is exact and
+case-sensitive.
+
+For example, `Mesh-Option-request_timeout: 2s` reaches the transport as the
+option `request_timeout: 2s`.
+
+Every other key is sent as message metadata. The caller's map is not modified.
+A nil map sends a message whose only metadata is `Content-Type`, with no
+options.
 
 ## Reply Metadata
 
@@ -68,9 +79,10 @@ message names the expected type, such as
 returns an `INTERNAL` `*MeshError` the same way, from `Call` and from
 `Publish`.
 
-Errors from the router, the Service Mesh API, and the transport are returned
-unchanged. The router's error is listed under
-[Library Errors](mesherror.md#library-errors).
+A transport name the router does not hold returns `ErrUnknownTransport`, a
+library error listed under [Library Errors](mesherror.md#library-errors).
+Errors from the Service Mesh API and from the transport are returned
+unchanged.
 
 ## Wire Format
 

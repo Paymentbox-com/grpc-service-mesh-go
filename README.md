@@ -1,9 +1,7 @@
 # grpc-service-mesh-go
 
-The Go implementation of the
-[gRPC Service Mesh API](https://github.com/Paymentbox-com/grpc-service-mesh-api),
-module `github.com/Paymentbox-com/grpc-service-mesh-go`, package
-`grpcmesh`, imported as `github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh`.
+`grpcmesh` is the Go implementation of the
+[gRPC Service Mesh API](https://github.com/Paymentbox-com/grpc-service-mesh-api).
 It carries protobuf messages over any transport that implements the
 [Service Mesh API Specification](https://github.com/Paymentbox-com/service-mesh-api)
 through the Go contract in
@@ -25,6 +23,10 @@ Generated code comes from `grpc-service-mesh-gen` in the specification
 repository and lives in a definitions project.
 
 ## Install
+
+The module is `github.com/Paymentbox-com/grpc-service-mesh-go`, and its one
+package, `grpcmesh`, is imported as
+`github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh`.
 
 ```sh
 go get github.com/Paymentbox-com/grpc-service-mesh-go
@@ -48,10 +50,11 @@ generated from `.proto` files.
 
 ### Reference Examples
 
-The examples in these docs use the `shop.OrderService` from the specification: a `ROUTE` method `Place` and a
-`TOPIC` method `Placed`, served over the transport named `nats` in deployment group `shop`. The generated package is
-`shop`, and the generated per-transport maps are in `servicemaps`. The library's own reference copy of that generated
-code is in `internal/testproto/`, described under [Generated Code](docs/generated-code.md).
+The examples in these docs use the reference definitions in `internal/testproto/definitions/`. They declare
+`shop.OrderService`, with a `ROUTE` method `Place` and a `TOPIC` method `Placed`, in deployment group `shop` over the
+transport named `mem`, the in-memory transport the tests use. The generated package is `shop`, and the generated
+per-transport maps are in `servicemaps`. The generated code is in `internal/testproto/`, written by
+`grpc-service-mesh-gen` as a consumer would generate it, and described under [Generated Code](docs/generated-code.md).
 
 ## Documentation
 
@@ -59,6 +62,6 @@ code is in `internal/testproto/`, described under [Generated Code](docs/generate
 - [Handlers](docs/handlers.md): implementing an `RPCService`, endpoint and subscriber handlers, returning errors, reply metadata, and message metadata
 - [Calling](docs/calling.md): calling generated clients, metadata and transport options, reply metadata, and the wire format
 - [MeshError](docs/mesherror.md): constructing and reading `MeshError`, and the errors the library returns
-- [Generated Code](docs/generated-code.md): what the generator emits for Go, with the reference file
+- [Generated Code](docs/generated-code.md): the generated reference output for Go, and what generated code relies on in this package
 - [Public API](docs/public-api.md): every exported name in `grpcmesh`
 - [Development](docs/development.md): the specification protos, the recipes, and the tests

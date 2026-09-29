@@ -1,6 +1,14 @@
 # MeshError
 
-`MeshError` wraps a `google.rpc.Status` and implements `error`.
+`MeshError` is the application failure that travels from a handler to its
+caller. A `ROUTE` handler returns one to report a failure, as described under
+[Returning an Error](handlers.md#returning-an-error), and the caller receives
+it from the generated client method, as described under
+[Calling](calling.md). It wraps a `google.rpc.Status`, the standard protobuf
+error message, so a caller in any language decodes the same code, message, and
+details.
+
+`MeshError` implements `error`.
 
 ```go
 me := grpcmesh.NewNotFoundError("no such item", &errdetails.ErrorInfo{Reason: "GONE"})
@@ -13,23 +21,41 @@ me.Error()   // "NOT_FOUND: no such item"
 back := grpcmesh.MeshErrorFromProto(st) // st is a *status.Status; the MeshError wraps it itself
 ```
 
-There is one constructor per `google.rpc.Code`, `NewNotFoundError`,
-`NewInvalidArgumentError`, `NewPermissionDeniedError`, and so on, each
-`NewMeshError` with its code fixed. The codes themselves are exported as
-constants of the `code.Code` type, `grpcmesh.OK`, `grpcmesh.NotFound`,
-`grpcmesh.Internal`, and the rest, so handler and caller code compares codes
-without importing the `code` package. `NewMeshError(c, msg, details...)` takes
-any code, including one with no constant.
+## Constructing a MeshError
+
+There is one constructor per `google.rpc.Code`, such as `NewNotFoundError`,
+`NewInvalidArgumentError`, and `NewPermissionDeniedError`. Each is
+`NewMeshError` with its code fixed, and takes the message and any detail
+messages.
+
+`NewMeshError(c, msg, details...)` takes any code, including one with no
+constant.
 
 `NewMeshError` packs each detail message into `google.protobuf.Any`. A detail
 that cannot be packed, such as a message whose string field holds invalid
-UTF-8, makes the result an `INTERNAL` error whose message names the detail
-type and the packing failure, and the code and message given are dropped, so
-a reply never claims details it does not carry.
+UTF-8, makes the result an `INTERNAL` error whose message names the detail type
+and the packing failure. The code and message given are dropped in that case,
+so a reply never claims details it does not carry.
+
+## Reading a MeshError
+
+The codes are exported as constants of the `code.Code` type, such as
+`grpcmesh.OK`, `grpcmesh.NotFound`, and `grpcmesh.Internal`, so handler and
+caller code compares codes without importing the `code` package. A caller
+finds a `*MeshError` with `errors.As` and tells codes apart with `Code()`.
+
+```go
+var me *grpcmesh.MeshError
+if errors.As(err, &me) && me.Code() == grpcmesh.NotFound {
+    // the order does not exist
+}
+```
 
 ## Library Errors
 
-These are the errors the package itself returns, apart from a `*MeshError`.
+These are the errors the package itself produces. A `*MeshError` that a
+handler returns reaches the caller as described under
+[Returning an Error](handlers.md#returning-an-error).
 
 | Error | Returned when |
 |---|---|
