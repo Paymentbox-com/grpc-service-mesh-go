@@ -54,8 +54,8 @@ new specification tag only adds options or enum values. To adopt one:
 2. Run `just proto`.
 3. Review the diff under `meshoptions/`.
 4. Run `just check`.
-5. Run `just bump patch`, `just bump minor`, or `just bump major`, commit, push
-   `master`, wait for CI to pass, and run `just release`.
+5. Run `just bump patch`, `just bump minor`, or `just bump major`, which commits
+   the new `VERSION`, then push `master`, wait for CI to pass, and run `just release`.
 
 The extension numbers in `mesh/options.proto` are part of every definitions
 project's compiled descriptors, and the specification never changes or
@@ -85,7 +85,7 @@ recipes.
 | `just lint` | Reports lint findings with `golangci-lint`. |
 | `just check` | Runs the format check, `vet`, `test`, `vuln`, and `lint`, in the order CI runs them. |
 | `just release` | Tags the current commit with the version in `VERSION`, pushes the tag, and asks the Go module proxy to fetch it. It refuses a working tree with changes. |
-| `just bump patch`, `just bump minor`, `just bump major` | Raises the version in `VERSION` by one step. A minor bump resets the patch number, and a major bump resets both. |
+| `just bump patch`, `just bump minor`, `just bump major` | Raises the version in `VERSION` by one step and commits that file alone. A minor bump resets the patch number, and a major bump resets both. |
 
 A Go version is released by its tag alone. Nothing is built or uploaded, and
 the proxy fetch only makes the new version resolve for others right away.
