@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
-	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto"
+	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto/shop"
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
 )
 
@@ -28,18 +28,18 @@ func topic(group string, segments ...string) mesh.Target {
 
 func TestRegisterAcceptsAGeneratedService(t *testing.T) {
 	registry := grpcmesh.NewRegistry()
-	svc := testproto.OrderService{
-		Place:  func(context.Context, *testproto.Order) (*testproto.Order, error) { return nil, nil },
-		Placed: func(context.Context, *testproto.Order) error { return nil },
+	svc := shop.OrderService{
+		Place:  func(context.Context, *shop.Order) (*shop.Order, error) { return nil, nil },
+		Placed: func(context.Context, *shop.Order) error { return nil },
 	}
 
 	registry.Register(svc)
 
 	endpoints, subscribers := registry.Endpoints("shop"), registry.Subscribers("shop")
-	if len(endpoints) != 1 || !endpoints[0].Target.Equal(testproto.OrderTargets.Place) {
+	if len(endpoints) != 1 || !endpoints[0].Target.Equal(shop.OrderTargets.Place) {
 		t.Errorf("Endpoints = %v, want Place", endpoints)
 	}
-	if len(subscribers) != 1 || !subscribers[0].Target.Equal(testproto.OrderTargets.Placed) {
+	if len(subscribers) != 1 || !subscribers[0].Target.Equal(shop.OrderTargets.Placed) {
 		t.Errorf("Subscribers = %v, want Placed", subscribers)
 	}
 }

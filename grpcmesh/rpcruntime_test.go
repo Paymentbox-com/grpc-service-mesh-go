@@ -8,7 +8,7 @@ import (
 
 	"github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
 	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/memtransport"
-	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto"
+	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto/shop"
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
 )
 
@@ -161,15 +161,15 @@ func TestRPCRuntimeStopLeavesTheClientClosed(t *testing.T) {
 }
 
 func TestRPCRuntimeServesAGeneratedService(t *testing.T) {
-	var got *testproto.Order
-	serveMem(t, testproto.OrderService{
-		Place: func(_ context.Context, req *testproto.Order) (*testproto.Order, error) {
+	var got *shop.Order
+	serveMem(t, shop.OrderService{
+		Place: func(_ context.Context, req *shop.Order) (*shop.Order, error) {
 			got = req
 			return order("reply"), nil
 		},
 	})
 
-	resp, _, err := testproto.OrderClient.Place(context.Background(), order("ask"), nil)
+	resp, _, err := shop.OrderClient.Place(context.Background(), order("ask"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -24,7 +24,7 @@ test:
 spec_tag := "v0.6.0"
 
 # Regenerate meshoptions/options.pb.go from the specification at {{spec_tag}}
-# and regenerate the test message code. protoc is found on PATH;
+# and regenerate the reference output in internal/testproto. protoc is found on PATH;
 # protoc-gen-go comes from the pinned Go toolchain.
 [group('build')]
 proto: proto-spec proto-test
@@ -39,10 +39,17 @@ proto-spec:
     git -c advice.detachedHead=false clone --quiet --depth 1 --branch {{spec_tag}} https://github.com/Paymentbox-com/grpc-service-mesh-api "$spec"
     mise exec -- protoc --proto_path="$spec" --go_out=. --go_opt=module=github.com/Paymentbox-com/grpc-service-mesh-go "$spec/mesh/options.proto"
 
-# Regenerate the test message code from internal/testproto/order.proto
+# The grpc-service-mesh-gen version the reference output in internal/testproto is generated with
+gen_version := "v0.8.1"
+
+# Regenerate internal/testproto from internal/testproto/definitions with grpc-service-mesh-gen at {{gen_version}}
 [group('build')]
 proto-test:
-    mise exec -- protoc --proto_path=internal/testproto --go_out=internal/testproto --go_opt=paths=source_relative internal/testproto/order.proto
+    #!/usr/bin/env bash
+    set -euo pipefail
+    { grep -rl --include='*.go' 'DO NOT EDIT' internal/testproto || true; } | xargs rm -f
+    mise exec -- go run github.com/Paymentbox-com/grpc-service-mesh-api/cmd/grpc-service-mesh-gen@{{gen_version}} \
+        --definitions internal/testproto/definitions --go_out=internal/testproto
 
 # Run go vet
 [group('checks')]

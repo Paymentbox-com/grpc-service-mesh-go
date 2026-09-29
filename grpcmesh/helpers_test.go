@@ -6,14 +6,15 @@ import (
 
 	"github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
 	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/memtransport"
-	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto"
+	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto/servicemaps"
+	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto/shop"
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
 	"google.golang.org/protobuf/proto"
 )
 
 var memConfig = mesh.Config{"url": "mem://hub"}
 
-var memServiceMap = mesh.ServiceMap{Targets: []mesh.Target{testproto.OrderTargets.Place, testproto.OrderTargets.Placed}}
+var memServiceMap = servicemaps.Mem
 
 // freshSingletons installs an empty DefaultTransportRouter and
 // DefaultRegistry for the test and restores the previous ones afterwards.
@@ -89,6 +90,6 @@ func mustMarshal(t *testing.T, m proto.Message) []byte {
 	return b
 }
 
-func order(id string) *testproto.Order {
-	return &testproto.Order{Id: proto.String(id)}
+func order(id string) *shop.Order {
+	return &shop.Order{Id: proto.String(id)}
 }

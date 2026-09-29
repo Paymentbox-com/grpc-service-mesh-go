@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh"
-	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto"
+	"github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto/shop"
 	"github.com/Paymentbox-com/service-mesh-go/mesh"
 	"google.golang.org/genproto/googleapis/rpc/code"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
@@ -28,8 +28,8 @@ func statusOf(t *testing.T, reply mesh.Message) *status.Status {
 }
 
 func TestEndpointRepliesWithTheEncodedResponse(t *testing.T) {
-	var got *testproto.Order
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(_ context.Context, req *testproto.Order) (*testproto.Order, error) {
+	var got *shop.Order
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(_ context.Context, req *shop.Order) (*shop.Order, error) {
 		got = req
 		return order("reply"), nil
 	})
@@ -39,13 +39,13 @@ func TestEndpointRepliesWithTheEncodedResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if !ep.Target.Equal(testproto.OrderTargets.Place) {
+	if !ep.Target.Equal(shop.OrderTargets.Place) {
 		t.Errorf("endpoint target = %v", ep.Target)
 	}
 	if got.GetId() != "ask" {
 		t.Errorf("handler received %v", got)
 	}
-	var resp testproto.Order
+	var resp shop.Order
 	if err := proto.Unmarshal(reply.Payload, &resp); err != nil {
 		t.Fatal(err)
 	}
@@ -62,9 +62,9 @@ func TestEndpointRepliesWithTheEncodedResponse(t *testing.T) {
 
 func TestEndpointExposesTheIncomingMetadata(t *testing.T) {
 	var seen map[string]string
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		seen = grpcmesh.IncomingMetadata(ctx)
-		return &testproto.Order{}, nil
+		return &shop.Order{}, nil
 	})
 
 	if _, err := ep.Handler(context.Background(), mesh.Message{Metadata: map[string]string{"Request-Id": "7"}}); err != nil {
@@ -78,7 +78,7 @@ func TestEndpointExposesTheIncomingMetadata(t *testing.T) {
 
 func TestEndpointRepliesAMeshErrorAsAStatus(t *testing.T) {
 	me := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key", &errdetails.ErrorInfo{Reason: "GONE"})
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(context.Context, *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(context.Context, *shop.Order) (*shop.Order, error) {
 		return nil, me
 	})
 
@@ -100,7 +100,7 @@ func TestEndpointRepliesAMeshErrorAsAStatus(t *testing.T) {
 }
 
 func TestEndpointRepliesUnknownForAnyOtherError(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(context.Context, *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(context.Context, *shop.Order) (*shop.Order, error) {
 		return nil, errors.New("database down")
 	})
 
@@ -119,7 +119,7 @@ func TestEndpointRepliesUnknownForAnyOtherError(t *testing.T) {
 }
 
 func TestEndpointRepliesUnknownForAPanic(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(context.Context, *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(context.Context, *shop.Order) (*shop.Order, error) {
 		panic("boom")
 	})
 
@@ -137,7 +137,7 @@ func TestEndpointRepliesUnknownForAPanic(t *testing.T) {
 }
 
 func TestEndpointRepliesWithTheReplyMetadataTheHandlerSets(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7", "Region": "east"})
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Region": "west"})
 		return order("reply"), nil
@@ -157,7 +157,7 @@ func TestEndpointRepliesWithTheReplyMetadataTheHandlerSets(t *testing.T) {
 }
 
 func TestEndpointRepliesAMeshErrorWithTheReplyMetadataTheHandlerSets(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Retry-After": "30"})
 		return nil, grpcmesh.NewNotFoundError("no such key")
 	})
@@ -176,7 +176,7 @@ func TestEndpointRepliesAMeshErrorWithTheReplyMetadataTheHandlerSets(t *testing.
 }
 
 func TestEndpointDropsOptionKeysTheHandlerSetsOnItsReply(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7", "Mesh-Option-request_timeout": "2s"})
 		return order("reply"), nil
 	})
@@ -195,7 +195,7 @@ func TestEndpointDropsOptionKeysTheHandlerSetsOnItsReply(t *testing.T) {
 }
 
 func TestEndpointOverwritesContentTypeAndGrpcStatusTheHandlerSetsOnAMeshErrorReply(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{grpcmesh.ContentTypeKey: "text/plain", grpcmesh.GrpcStatusKey: "0"})
 		return nil, grpcmesh.NewNotFoundError("no such key")
 	})
@@ -214,7 +214,7 @@ func TestEndpointOverwritesContentTypeAndGrpcStatusTheHandlerSetsOnAMeshErrorRep
 }
 
 func TestEndpointOverwritesContentTypeAndDropsGrpcStatusTheHandlerSetsOnASuccessfulReply(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(ctx context.Context, _ *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{grpcmesh.ContentTypeKey: "text/plain", grpcmesh.GrpcStatusKey: "5"})
 		return order("reply"), nil
 	})
@@ -234,7 +234,7 @@ func TestEndpointOverwritesContentTypeAndDropsGrpcStatusTheHandlerSetsOnASuccess
 
 func TestEndpointRepliesInternalForAnUndecodableRequest(t *testing.T) {
 	called := false
-	ep := grpcmesh.NewEndpoint(testproto.OrderTargets.Place, func(context.Context, *testproto.Order) (*testproto.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(context.Context, *shop.Order) (*shop.Order, error) {
 		called = true
 		return nil, nil
 	})
@@ -256,9 +256,9 @@ func TestEndpointRepliesInternalForAnUndecodableRequest(t *testing.T) {
 }
 
 func TestSubscriberDeliversTheDecodedMessageAndMetadata(t *testing.T) {
-	var got *testproto.Order
+	var got *shop.Order
 	var seen map[string]string
-	sub := grpcmesh.NewSubscriber(testproto.OrderTargets.Placed, func(ctx context.Context, req *testproto.Order) error {
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, func(ctx context.Context, req *shop.Order) error {
 		got, seen = req, grpcmesh.IncomingMetadata(ctx)
 		return nil
 	})
@@ -271,7 +271,7 @@ func TestSubscriberDeliversTheDecodedMessageAndMetadata(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !sub.Target.Equal(testproto.OrderTargets.Placed) {
+	if !sub.Target.Equal(shop.OrderTargets.Placed) {
 		t.Errorf("subscriber target = %v", sub.Target)
 	}
 	if got.GetId() != "made" {
@@ -284,7 +284,7 @@ func TestSubscriberDeliversTheDecodedMessageAndMetadata(t *testing.T) {
 
 func TestSubscriberReturnsTheHandlerErrorUnchanged(t *testing.T) {
 	failure := errors.New("cannot record")
-	sub := grpcmesh.NewSubscriber(testproto.OrderTargets.Placed, func(context.Context, *testproto.Order) error {
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, func(context.Context, *shop.Order) error {
 		return failure
 	})
 
@@ -297,7 +297,7 @@ func TestSubscriberReturnsTheHandlerErrorUnchanged(t *testing.T) {
 
 func TestSubscriberReturnsTheDecodeErrorWithoutRunningTheHandler(t *testing.T) {
 	called := false
-	sub := grpcmesh.NewSubscriber(testproto.OrderTargets.Placed, func(context.Context, *testproto.Order) error {
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, func(context.Context, *shop.Order) error {
 		called = true
 		return nil
 	})
@@ -313,7 +313,7 @@ func TestSubscriberReturnsTheDecodeErrorWithoutRunningTheHandler(t *testing.T) {
 }
 
 func TestSetReplyMetadataInASubscriberHasNoEffect(t *testing.T) {
-	sub := grpcmesh.NewSubscriber(testproto.OrderTargets.Placed, func(ctx context.Context, _ *testproto.Order) error {
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, func(ctx context.Context, _ *shop.Order) error {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7"})
 		return nil
 	})

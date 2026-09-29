@@ -1,0 +1,23 @@
+// The reference definitions the tests and docs use. `just proto-test`
+// generates internal/testproto from them with grpc-service-mesh-gen.
+syntax = "proto3";
+
+package shop;
+
+import "mesh/options.proto";
+import "google/protobuf/empty.proto";
+
+option go_package = "github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto/shop";
+
+message Order {
+  optional string id = 1;
+  optional string item = 2;
+}
+
+service OrderService {
+  rpc Place(Order) returns (Order);
+  rpc Placed(Order) returns (google.protobuf.Empty) {
+    option (mesh.kind) = TOPIC;
+    option (mesh.consumer_group) = "audit";
+  }
+}

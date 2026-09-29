@@ -1,0 +1,10 @@
+// Directory-wide settings for the shop deployment group. The tests serve it
+// over the in-memory transport in internal/memtransport, named "mem".
+syntax = "proto3";
+
+package shop;
+
+import "mesh/options.proto";
+
+option go_package = "github.com/Paymentbox-com/grpc-service-mesh-go/internal/testproto/shop";
+option (mesh.transport) = "mem";
