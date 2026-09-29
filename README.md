@@ -4,8 +4,7 @@ The Go implementation of the
 [gRPC Service Mesh API](https://github.com/Paymentbox-com/grpc-service-mesh-api),
 module `github.com/Paymentbox-com/grpc-service-mesh-go`, package
 `grpcmesh`, imported as `github.com/Paymentbox-com/grpc-service-mesh-go/grpcmesh`.
-It
-carries protobuf messages over any transport that implements the
+It carries protobuf messages over any transport that implements the
 [Service Mesh API Specification](https://github.com/Paymentbox-com/service-mesh-api)
 through the Go contract in
 [service-mesh-go](https://github.com/Paymentbox-com/service-mesh-go).
