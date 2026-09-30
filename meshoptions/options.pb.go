@@ -92,14 +92,6 @@ var file_mesh_options_proto_extTypes = []protoimpl.ExtensionInfo{
 	{
 		ExtendedType:  (*descriptorpb.FileOptions)(nil),
 		ExtensionType: (*string)(nil),
-		Field:         50003,
-		Name:          "mesh.deployment_group",
-		Tag:           "bytes,50003,opt,name=deployment_group",
-		Filename:      "mesh/options.proto",
-	},
-	{
-		ExtendedType:  (*descriptorpb.FileOptions)(nil),
-		ExtensionType: (*string)(nil),
 		Field:         50004,
 		Name:          "mesh.transport",
 		Tag:           "bytes,50004,opt,name=transport",
@@ -121,8 +113,9 @@ var (
 	//
 	// optional mesh.Kind kind = 50001;
 	E_Kind = &file_mesh_options_proto_extTypes[0]
-	// Consumer group for the binding generated from this method. Absent means
-	// the deployment group.
+	// Consumer group of the endpoint or subscriber generated from this method.
+	// Absent means the deployment group of the runtime that serves it. An
+	// application can override it when it registers the service.
 	//
 	// optional string consumer_group = 50002;
 	E_ConsumerGroup = &file_mesh_options_proto_extTypes[1]
@@ -130,20 +123,15 @@ var (
 
 // Extension fields to descriptorpb.FileOptions.
 var (
-	// Overrides the deployment group name for the file's top-level directory.
-	// Absent means the directory name.
-	//
-	// optional string deployment_group = 50003;
-	E_DeploymentGroup = &file_mesh_options_proto_extTypes[2]
 	// Names the transport the file's top-level directory is served over.
 	// Exactly one file per top-level directory sets it.
 	//
 	// optional string transport = 50004;
-	E_Transport = &file_mesh_options_proto_extTypes[3]
+	E_Transport = &file_mesh_options_proto_extTypes[2]
 	// Prefixes every name the file's directory adds to a root package or module.
 	//
 	// optional string root_prefix = 50005;
-	E_RootPrefix = &file_mesh_options_proto_extTypes[4]
+	E_RootPrefix = &file_mesh_options_proto_extTypes[3]
 )
 
 var File_mesh_options_proto protoreflect.FileDescriptor
@@ -156,8 +144,7 @@ const file_mesh_options_proto_rawDesc = "" +
 	"\x05TOPIC\x10\x01:@\n" +
 	"\x04kind\x12\x1e.google.protobuf.MethodOptions\x18ц\x03 \x01(\x0e2\n" +
 	".mesh.KindR\x04kind:G\n" +
-	"\x0econsumer_group\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\tR\rconsumerGroup:I\n" +
-	"\x10deployment_group\x12\x1c.google.protobuf.FileOptions\x18ӆ\x03 \x01(\tR\x0fdeploymentGroup:<\n" +
+	"\x0econsumer_group\x12\x1e.google.protobuf.MethodOptions\x18҆\x03 \x01(\tR\rconsumerGroup:<\n" +
 	"\ttransport\x12\x1c.google.protobuf.FileOptions\x18Ԇ\x03 \x01(\tR\ttransport:?\n" +
 	"\vroot_prefix\x12\x1c.google.protobuf.FileOptions\x18Ն\x03 \x01(\tR\n" +
 	"rootPrefixB<Z:github.com/Paymentbox-com/grpc-service-mesh-go/meshoptionsb\x06proto3"
@@ -183,14 +170,13 @@ var file_mesh_options_proto_goTypes = []any{
 var file_mesh_options_proto_depIdxs = []int32{
 	1, // 0: mesh.kind:extendee -> google.protobuf.MethodOptions
 	1, // 1: mesh.consumer_group:extendee -> google.protobuf.MethodOptions
-	2, // 2: mesh.deployment_group:extendee -> google.protobuf.FileOptions
-	2, // 3: mesh.transport:extendee -> google.protobuf.FileOptions
-	2, // 4: mesh.root_prefix:extendee -> google.protobuf.FileOptions
-	0, // 5: mesh.kind:type_name -> mesh.Kind
-	6, // [6:6] is the sub-list for method output_type
-	6, // [6:6] is the sub-list for method input_type
-	5, // [5:6] is the sub-list for extension type_name
-	0, // [0:5] is the sub-list for extension extendee
+	2, // 2: mesh.transport:extendee -> google.protobuf.FileOptions
+	2, // 3: mesh.root_prefix:extendee -> google.protobuf.FileOptions
+	0, // 4: mesh.kind:type_name -> mesh.Kind
+	5, // [5:5] is the sub-list for method output_type
+	5, // [5:5] is the sub-list for method input_type
+	4, // [4:5] is the sub-list for extension type_name
+	0, // [0:4] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name
 }
 
@@ -206,7 +192,7 @@ func file_mesh_options_proto_init() {
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_mesh_options_proto_rawDesc), len(file_mesh_options_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   0,
-			NumExtensions: 5,
+			NumExtensions: 4,
 			NumServices:   0,
 		},
 		GoTypes:           file_mesh_options_proto_goTypes,

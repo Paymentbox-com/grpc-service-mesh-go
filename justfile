@@ -21,7 +21,7 @@ test:
     {{go}} test -race ./...
 
 # The grpc-service-mesh-api tag whose mesh/options.proto meshoptions is compiled from
-spec_tag := "v0.6.0"
+spec_tag := "v0.9.0"
 
 # Regenerate meshoptions/options.pb.go from the specification at {{spec_tag}}
 # and regenerate the reference output in internal/testproto. protoc is found on PATH;
@@ -40,7 +40,7 @@ proto-spec:
     mise exec -- protoc --proto_path="$spec" --go_out=. --go_opt=module=github.com/Paymentbox-com/grpc-service-mesh-go "$spec/mesh/options.proto"
 
 # The grpc-service-mesh-gen version the reference output in internal/testproto is generated with
-gen_version := "v0.8.3-0.20260930203044-2f808b9471f4"
+gen_version := "v0.9.0"
 
 # Regenerate internal/testproto from internal/testproto/definitions with grpc-service-mesh-gen at {{gen_version}}
 [group('build')]

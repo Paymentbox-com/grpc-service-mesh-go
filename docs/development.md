@@ -8,8 +8,7 @@ and tests used during development.
 
 `meshoptions/` is package `meshoptions`, the `protoc-gen-go` output of the
 specification's `mesh/options.proto`, whose `go_package` names it. It registers
-the extensions `mesh.kind`, `mesh.consumer_group`, `mesh.deployment_group`,
-`mesh.transport`, and `mesh.root_prefix`. It is compiled from the
+the extensions `mesh.kind`, `mesh.consumer_group`, `mesh.transport`, and `mesh.root_prefix`. It is compiled from the
 [grpc-service-mesh-api](https://github.com/Paymentbox-com/grpc-service-mesh-api)
 tag named by `spec_tag` in the `justfile`.
 
@@ -103,7 +102,7 @@ CI runs `just proto` and fails when the result differs from what is committed.
 Adopting a new generator version means setting `gen_version`, running
 `just proto`, and reviewing the diff.
 
-`meshoptions/meshoptions_test.go` checks that the five extensions are
+`meshoptions/meshoptions_test.go` checks that the four extensions are
 registered by their full names.
 
 Tests that use the process router and registry call `freshSingletons`, which

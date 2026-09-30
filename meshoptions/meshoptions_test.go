@@ -8,7 +8,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoregistry"
 )
 
-func TestPackageRegistersTheFiveExtensionsByFullName(t *testing.T) {
+func TestPackageRegistersTheFourExtensionsByFullName(t *testing.T) {
 	check := func(name protoreflect.FullName, want protoreflect.ExtensionType, number protoreflect.FieldNumber, extendee protoreflect.FullName) {
 		got, err := protoregistry.GlobalTypes.FindExtensionByName(name)
 		if err != nil {
@@ -29,7 +29,6 @@ func TestPackageRegistersTheFiveExtensionsByFullName(t *testing.T) {
 
 	check("mesh.kind", meshoptions.E_Kind, 50001, "google.protobuf.MethodOptions")
 	check("mesh.consumer_group", meshoptions.E_ConsumerGroup, 50002, "google.protobuf.MethodOptions")
-	check("mesh.deployment_group", meshoptions.E_DeploymentGroup, 50003, "google.protobuf.FileOptions")
 	check("mesh.transport", meshoptions.E_Transport, 50004, "google.protobuf.FileOptions")
 	check("mesh.root_prefix", meshoptions.E_RootPrefix, 50005, "google.protobuf.FileOptions")
 }
