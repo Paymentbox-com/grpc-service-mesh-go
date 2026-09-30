@@ -57,17 +57,14 @@ var OrderTargets = struct {
 		Segments: []string{"shop", "OrderService", "Place"},
 		Kind:     mesh.KindRoute,
 		Metadata: map[string]string{
-			"deployment_group": "shop",
-			"transport":        "mem",
+			"transport": "mem",
 		},
 	},
 	Placed: mesh.Target{
 		Segments: []string{"shop", "OrderService", "Placed"},
 		Kind:     mesh.KindTopic,
 		Metadata: map[string]string{
-			"deployment_group": "shop",
-			"transport":        "mem",
-			"consumer_group":   "audit",
+			"transport": "mem",
 		},
 	},
 }
@@ -83,7 +80,7 @@ type OrderService struct {
 func (s OrderService) Endpoints() []mesh.Endpoint {
 	var out []mesh.Endpoint
 	if s.Place != nil {
-		out = append(out, grpcmesh.NewEndpoint(OrderTargets.Place, s.Place))
+		out = append(out, grpcmesh.NewEndpoint(OrderTargets.Place, "", s.Place))
 	}
 	return out
 }
@@ -92,7 +89,7 @@ func (s OrderService) Endpoints() []mesh.Endpoint {
 func (s OrderService) Subscribers() []mesh.Subscriber {
 	var out []mesh.Subscriber
 	if s.Placed != nil {
-		out = append(out, grpcmesh.NewSubscriber(OrderTargets.Placed, s.Placed))
+		out = append(out, grpcmesh.NewSubscriber(OrderTargets.Placed, "audit", s.Placed))
 	}
 	return out
 }
@@ -142,8 +139,8 @@ on.
 
 | Function | Called by | What it does |
 |---|---|---|
-| `NewEndpoint[Req, Resp](target, fn)` | an `RPCService`'s `Endpoints()` | Builds the `mesh.Endpoint` that decodes the request, calls `fn`, and encodes the reply, as described under [Handlers](handlers.md). |
-| `NewSubscriber[Req](target, fn)` | an `RPCService`'s `Subscribers()` | Builds the `mesh.Subscriber` that decodes the message and calls `fn`. |
+| `NewEndpoint[Req, Resp](target, consumerGroup, fn)` | an `RPCService`'s `Endpoints()` | Builds the `mesh.Endpoint` that decodes the request, calls `fn`, and encodes the reply, as described under [Handlers](handlers.md). |
+| `NewSubscriber[Req](target, consumerGroup, fn)` | an `RPCService`'s `Subscribers()` | Builds the `mesh.Subscriber` that decodes the message and calls `fn`. |
 | `Call[Req, Resp](ctx, target, req, md)` | a `ROUTE` method of an `RPCClient` | Sends the request and decodes the reply, as described under [Calling](calling.md). |
 | `Publish[Req](ctx, target, req, md)` | a `TOPIC` method of an `RPCClient` | Publishes the message. |
 

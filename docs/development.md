@@ -47,8 +47,8 @@ compiles `mesh/options.proto` from it with `protoc` and `protoc-gen-go`, and
 removes the clone. CI runs `just proto` and fails when the result differs from
 what is committed, so the compiled form always matches the stated tag.
 
-The specification's protobuf definitions maintain backwards compatibility, so a
-new specification tag only adds options or enum values. To adopt one:
+Until version 1.0, a new specification tag may change or remove options as well as
+add them, so the diff is reviewed before a tag is adopted. To adopt one:
 
 1. Set `spec_tag` in the `justfile` to the new tag.
 2. Run `just proto`.
@@ -58,8 +58,8 @@ new specification tag only adds options or enum values. To adopt one:
    the new `VERSION`, then push `master`, wait for CI to pass, and run `just release`.
 
 The extension numbers in `mesh/options.proto` are part of every definitions
-project's compiled descriptors, and the specification never changes or
-reuses one.
+project's compiled descriptors, so a definitions project regenerates its code
+when it adopts a specification tag that changes them.
 
 ## Tools and Tests
 

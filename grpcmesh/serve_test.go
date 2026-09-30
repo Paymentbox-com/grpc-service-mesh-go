@@ -29,7 +29,7 @@ func statusOf(t *testing.T, reply mesh.Message) *status.Status {
 
 func TestEndpointRepliesWithTheEncodedResponse(t *testing.T) {
 	var got *shop.Order
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(_ context.Context, req *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(_ context.Context, req *shop.Order) (*shop.Order, error) {
 		got = req
 		return order("reply"), nil
 	})
@@ -62,7 +62,7 @@ func TestEndpointRepliesWithTheEncodedResponse(t *testing.T) {
 
 func TestEndpointExposesTheIncomingMetadata(t *testing.T) {
 	var seen map[string]string
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		seen = grpcmesh.IncomingMetadata(ctx)
 		return &shop.Order{}, nil
 	})
@@ -78,7 +78,7 @@ func TestEndpointExposesTheIncomingMetadata(t *testing.T) {
 
 func TestEndpointRepliesAMeshErrorAsAStatus(t *testing.T) {
 	me := grpcmesh.NewMeshError(code.Code_NOT_FOUND, "no such key", &errdetails.ErrorInfo{Reason: "GONE"})
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(context.Context, *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(context.Context, *shop.Order) (*shop.Order, error) {
 		return nil, me
 	})
 
@@ -100,7 +100,7 @@ func TestEndpointRepliesAMeshErrorAsAStatus(t *testing.T) {
 }
 
 func TestEndpointRepliesUnknownForAnyOtherError(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(context.Context, *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(context.Context, *shop.Order) (*shop.Order, error) {
 		return nil, errors.New("database down")
 	})
 
@@ -119,7 +119,7 @@ func TestEndpointRepliesUnknownForAnyOtherError(t *testing.T) {
 }
 
 func TestEndpointRepliesUnknownForAPanic(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(context.Context, *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(context.Context, *shop.Order) (*shop.Order, error) {
 		panic("boom")
 	})
 
@@ -137,7 +137,7 @@ func TestEndpointRepliesUnknownForAPanic(t *testing.T) {
 }
 
 func TestEndpointRepliesWithTheReplyMetadataTheHandlerSets(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7", "Region": "east"})
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Region": "west"})
 		return order("reply"), nil
@@ -157,7 +157,7 @@ func TestEndpointRepliesWithTheReplyMetadataTheHandlerSets(t *testing.T) {
 }
 
 func TestEndpointRepliesAMeshErrorWithTheReplyMetadataTheHandlerSets(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Retry-After": "30"})
 		return nil, grpcmesh.NewNotFoundError("no such key")
 	})
@@ -176,7 +176,7 @@ func TestEndpointRepliesAMeshErrorWithTheReplyMetadataTheHandlerSets(t *testing.
 }
 
 func TestEndpointDropsOptionKeysTheHandlerSetsOnItsReply(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7", "Mesh-Option-request_timeout": "2s"})
 		return order("reply"), nil
 	})
@@ -195,7 +195,7 @@ func TestEndpointDropsOptionKeysTheHandlerSetsOnItsReply(t *testing.T) {
 }
 
 func TestEndpointOverwritesContentTypeAndGrpcStatusTheHandlerSetsOnAMeshErrorReply(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{grpcmesh.ContentTypeKey: "text/plain", grpcmesh.GrpcStatusKey: "0"})
 		return nil, grpcmesh.NewNotFoundError("no such key")
 	})
@@ -214,7 +214,7 @@ func TestEndpointOverwritesContentTypeAndGrpcStatusTheHandlerSetsOnAMeshErrorRep
 }
 
 func TestEndpointOverwritesContentTypeAndDropsGrpcStatusTheHandlerSetsOnASuccessfulReply(t *testing.T) {
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(ctx context.Context, _ *shop.Order) (*shop.Order, error) {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{grpcmesh.ContentTypeKey: "text/plain", grpcmesh.GrpcStatusKey: "5"})
 		return order("reply"), nil
 	})
@@ -234,7 +234,7 @@ func TestEndpointOverwritesContentTypeAndDropsGrpcStatusTheHandlerSetsOnASuccess
 
 func TestEndpointRepliesInternalForAnUndecodableRequest(t *testing.T) {
 	called := false
-	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, func(context.Context, *shop.Order) (*shop.Order, error) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(context.Context, *shop.Order) (*shop.Order, error) {
 		called = true
 		return nil, nil
 	})
@@ -258,7 +258,7 @@ func TestEndpointRepliesInternalForAnUndecodableRequest(t *testing.T) {
 func TestSubscriberDeliversTheDecodedMessageAndMetadata(t *testing.T) {
 	var got *shop.Order
 	var seen map[string]string
-	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, func(ctx context.Context, req *shop.Order) error {
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, "", func(ctx context.Context, req *shop.Order) error {
 		got, seen = req, grpcmesh.IncomingMetadata(ctx)
 		return nil
 	})
@@ -284,7 +284,7 @@ func TestSubscriberDeliversTheDecodedMessageAndMetadata(t *testing.T) {
 
 func TestSubscriberReturnsTheHandlerErrorUnchanged(t *testing.T) {
 	failure := errors.New("cannot record")
-	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, func(context.Context, *shop.Order) error {
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, "", func(context.Context, *shop.Order) error {
 		return failure
 	})
 
@@ -297,7 +297,7 @@ func TestSubscriberReturnsTheHandlerErrorUnchanged(t *testing.T) {
 
 func TestSubscriberReturnsTheDecodeErrorWithoutRunningTheHandler(t *testing.T) {
 	called := false
-	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, func(context.Context, *shop.Order) error {
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, "", func(context.Context, *shop.Order) error {
 		called = true
 		return nil
 	})
@@ -313,7 +313,7 @@ func TestSubscriberReturnsTheDecodeErrorWithoutRunningTheHandler(t *testing.T) {
 }
 
 func TestSetReplyMetadataInASubscriberHasNoEffect(t *testing.T) {
-	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, func(ctx context.Context, _ *shop.Order) error {
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, "", func(ctx context.Context, _ *shop.Order) error {
 		grpcmesh.SetReplyMetadata(ctx, map[string]string{"Request-Id": "7"})
 		return nil
 	})
@@ -328,5 +328,29 @@ func TestSetReplyMetadataInASubscriberHasNoEffect(t *testing.T) {
 func TestIncomingMetadataOutsideAHandlerIsNil(t *testing.T) {
 	if md := grpcmesh.IncomingMetadata(context.Background()); md != nil {
 		t.Errorf("IncomingMetadata = %v, want nil", md)
+	}
+}
+
+func TestNewEndpointAndNewSubscriberPutTheConsumerGroupInMetadata(t *testing.T) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "orders", func(context.Context, *shop.Order) (*shop.Order, error) { return nil, nil })
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, "audit", func(context.Context, *shop.Order) error { return nil })
+
+	if got := ep.Metadata[mesh.ConsumerGroupKey]; got != "orders" {
+		t.Errorf("endpoint consumer_group = %q, want orders", got)
+	}
+	if got := sub.Metadata[mesh.ConsumerGroupKey]; got != "audit" {
+		t.Errorf("subscriber consumer_group = %q, want audit", got)
+	}
+}
+
+func TestNewEndpointAndNewSubscriberWithoutAConsumerGroupSetNoMetadata(t *testing.T) {
+	ep := grpcmesh.NewEndpoint(shop.OrderTargets.Place, "", func(context.Context, *shop.Order) (*shop.Order, error) { return nil, nil })
+	sub := grpcmesh.NewSubscriber(shop.OrderTargets.Placed, "", func(context.Context, *shop.Order) error { return nil })
+
+	if _, set := ep.Metadata[mesh.ConsumerGroupKey]; set {
+		t.Errorf("endpoint metadata = %v, want no consumer_group", ep.Metadata)
+	}
+	if _, set := sub.Metadata[mesh.ConsumerGroupKey]; set {
+		t.Errorf("subscriber metadata = %v, want no consumer_group", sub.Metadata)
 	}
 }

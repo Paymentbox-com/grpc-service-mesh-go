@@ -60,7 +60,7 @@ func serveMem(t *testing.T, svc grpcmesh.RPCService) *memtransport.Hub {
 }
 
 // serveRaw configures the singletons with transport "mem" on a new hub and
-// starts a hub runtime with the given raw bindings. It returns the hub.
+// starts a hub runtime with the given raw endpoints and subscribers. It returns the hub.
 func serveRaw(t *testing.T, endpoints []mesh.Endpoint, subscribers []mesh.Subscriber) *memtransport.Hub {
 	t.Helper()
 	freshSingletons(t)

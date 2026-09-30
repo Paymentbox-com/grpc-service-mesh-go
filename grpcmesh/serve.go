@@ -12,7 +12,9 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// NewEndpoint wraps fn as the mesh.Endpoint for a ROUTE target. The handler
+// NewEndpoint wraps fn as the mesh.Endpoint for a ROUTE target. consumerGroup
+// is the method's consumer_group option, or "" when it has none, and goes in
+// the Endpoint's metadata. The handler
 // decodes the request into a fresh Req, exposes the message metadata through
 // IncomingMetadata, and replies with the encoded Resp under Content-Type
 // application/x-protobuf.
@@ -29,9 +31,10 @@ import (
 // with the failure's text. A request that does not decode, or a response
 // that does not encode, is reported as INTERNAL with a message naming the
 // message type. The handler never returns an error to the runtime.
-func NewEndpoint[Req, Resp proto.Message](t mesh.Target, fn func(context.Context, Req) (Resp, error)) mesh.Endpoint {
+func NewEndpoint[Req, Resp proto.Message](t mesh.Target, consumerGroup string, fn func(context.Context, Req) (Resp, error)) mesh.Endpoint {
 	return mesh.Endpoint{
-		Target: t,
+		Target:   t,
+		Metadata: consumerGroupMetadata(consumerGroup),
 		Handler: func(ctx context.Context, m mesh.Message) (mesh.Message, error) {
 			req, err := decode[Req]("request", m.Payload)
 			if err != nil {
@@ -54,14 +57,17 @@ func NewEndpoint[Req, Resp proto.Message](t mesh.Target, fn func(context.Context
 	}
 }
 
-// NewSubscriber wraps fn as the mesh.Subscriber for a TOPIC target. The
+// NewSubscriber wraps fn as the mesh.Subscriber for a TOPIC target.
+// consumerGroup is the method's consumer_group option, or "" when it has
+// none, and goes in the Subscriber's metadata. The
 // handler decodes the message into a fresh Req, exposes the message metadata
 // through IncomingMetadata, and returns fn's error to the runtime unchanged.
 // A message that does not decode returns an error naming the message type.
 // Panics are not recovered.
-func NewSubscriber[Req proto.Message](t mesh.Target, fn func(context.Context, Req) error) mesh.Subscriber {
+func NewSubscriber[Req proto.Message](t mesh.Target, consumerGroup string, fn func(context.Context, Req) error) mesh.Subscriber {
 	return mesh.Subscriber{
-		Target: t,
+		Target:   t,
+		Metadata: consumerGroupMetadata(consumerGroup),
 		Handler: func(ctx context.Context, m mesh.Message) error {
 			req, err := decode[Req]("request", m.Payload)
 			if err != nil {
@@ -127,4 +133,14 @@ func withContentType(md map[string]string) map[string]string {
 	maps.Copy(out, md)
 	out[ContentTypeKey] = ContentTypeProtobuf
 	return out
+}
+
+// consumerGroupMetadata is the metadata of a generated Endpoint or
+// Subscriber: consumer_group when the method sets one, and nothing
+// otherwise.
+func consumerGroupMetadata(group string) map[string]string {
+	if group == "" {
+		return nil
+	}
+	return map[string]string{mesh.ConsumerGroupKey: group}
 }

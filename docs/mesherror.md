@@ -61,7 +61,7 @@ handler returns reaches the caller as described under
 |---|---|
 | `ErrUnknownTransport` | `DefaultTransportRouter.Client`, `NewRPCRuntime`, `Call`, or `Publish` looks up a transport name that was not added to the router. The error is wrapped with the name. |
 | `ErrNoRuntimeConstructor` | `NewRPCRuntime` is given a nil `newRuntime`. |
-| `ErrTargetOutsideRuntime` | A `Target` given through `WithEndpoints` or `WithSubscribers` carries a different `deployment_group` or `transport` from the runtime. The error is wrapped with the Target's segments and the key that differs. |
+| a panic from `Register` | `WithConsumerGroup` names a target that is not one of the registered service's rpc methods. The message names the target's segments. It happens at boot, and nothing of that service is registered. |
 | `*MeshError` with `INTERNAL` | A payload fails to encode or decode. `Call` returns it when the reply does not decode, `Call` and `Publish` return it when the request does not encode, and a caller receives it when the serving handler could not decode the request or encode the response. |
 
 Errors from the Service Mesh API, from the transport, and from `newRuntime` are
